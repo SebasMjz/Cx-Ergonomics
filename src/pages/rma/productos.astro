@@ -1,0 +1,358 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { ProductModel } from '../../lib/models/Product';
+import { CategoryModel } from '../../lib/models/Category';
+import { TagModel } from '../../lib/models/Tag';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+if (session.role !== 'admin') return Astro.redirect('/rma');
+
+await connectMongoose();
+const products = await ProductModel.find().sort({ order: 1, createdAt: 1 }).populate('category_id').populate({ path: 'tag_ids', strictPopulate: false }).lean();
+const categories = await CategoryModel.find().sort({ name: 1 }).lean();
+const tags = await TagModel.find().sort({ order: 1 }).lean();
+
+const productsData = JSON.stringify(products.map((p) => ({
+	id: p._id.toString(),
+	name: p.name,
+	slug: p.slug,
+	sku: p.sku,
+	description: p.description,
+	category_id: (p.category_id as any)?._id?.toString() || '',
+	category_name: (p.category_id as any)?.name || '',
+	tag_ids: ((p.tag_ids as any[]) || []).map((t) => t._id.toString()),
+	tags: ((p.tag_ids as any[]) || []).map((t) => ({ name: t.name, color: t.color })),
+	highlights: p.highlights || [],
+	spec_table: p.spec_table || [],
+	images: p.images || [],
+	is_active: p.is_active,
+})));
+---
+
+<AdminLayout
+	title="Productos | CX Ergonomic"
+	active="productos"
+	heading="Productos"
+	subheading="Listado completo de productos. Busca, previsualiza, crea y edita."
+	session={session}
+>
+	<button slot="actions" class="btn btn-dark rounded-pill px-3 fw-semibold" id="new-product-btn">
+		<i class="ri-add-line me-1"></i> Nuevo producto
+	</button>
+
+	<!-- Buscador -->
+	<div class="card shadow-sm mb-3">
+		<div class="card-body py-3">
+			<div class="input-group">
+				<span class="input-group-text bg-white border-end-0"><i class="ri-search-line text-muted"></i></span>
+				<input type="text" class="form-control border-start-0 ps-0" id="product-search" placeholder="Buscar por nombre, SKU o categoría..." />
+			</div>
+		</div>
+	</div>
+
+	<div class="card shadow-sm">
+		<div class="card-body p-3">
+			<div id="product-list" class="d-flex flex-column gap-2">
+				{products.length === 0 ? (
+					<div class="text-center text-muted py-5">No hay productos. Crea el primero.</div>
+				) : products.map((p) => (
+					<div class="product-row card border" data-id={p._id.toString()} data-search={`${p.name} ${p.sku} ${(p.category_id as any)?.name || ''}`.toLowerCase()}>
+						<div class="card-body p-2 d-flex align-items-center gap-3">
+							<img src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'} alt={p.name} style="width:54px;height:54px;object-fit:contain;background:#f3f4f6;border-radius:6px;" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+							<div class="flex-grow-1 min-w-0">
+								<div class="fw-bold text-truncate">{p.name} {!p.is_active && <span class="badge bg-secondary-subtle text-secondary ms-1">oculto</span>}</div>
+								<div class="small text-muted">SKU: {p.sku} · {(p.category_id as any)?.name || 'Sin categoría'}</div>
+								<div class="d-flex gap-1 mt-1 flex-wrap">
+									{((p.tag_ids as any[]) || []).map((t) => (
+										<span class="badge" style={`background:${t.color}; color:#000; border:1px solid rgba(0,0,0,.15); font-size:0.62rem;`}>{t.name}</span>
+									))}
+								</div>
+							</div>
+							<div class="d-flex gap-2 product-actions">
+								<button class="btn btn-sm btn-outline-secondary rounded-circle action-btn view-product-btn" title="Previsualizar"><i class="ri-eye-line"></i></button>
+								<button class="btn btn-sm btn-outline-primary rounded-circle action-btn edit-product-btn" title="Editar"><i class="ri-pencil-line"></i></button>
+								<button class="btn btn-sm btn-outline-danger rounded-circle action-btn delete-product-btn" title="Eliminar"><i class="ri-delete-bin-line"></i></button>
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+			<div id="product-empty" class="text-center text-muted py-5 d-none">No se encontraron productos para tu búsqueda.</div>
+		</div>
+	</div>
+
+	<!-- Modal preview -->
+	<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold">Vista previa</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4" id="preview-body"></div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="preview-edit-btn"><i class="ri-pencil-line me-1"></i> Editar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal crear/editar -->
+	<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold" id="productModalTitle">Nuevo producto</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<input type="hidden" id="pr-id" />
+					<div class="row g-3">
+						<div class="col-12 col-md-8"><label class="form-label small fw-bold text-muted">Nombre</label><input type="text" class="form-control" id="pr-name" /></div>
+						<div class="col-12 col-md-4"><label class="form-label small fw-bold text-muted">SKU</label><input type="text" class="form-control" id="pr-sku" /></div>
+						<div class="col-12"><label class="form-label small fw-bold text-muted">Descripción</label><textarea class="form-control" id="pr-description" rows="3"></textarea></div>
+						<div class="col-12 d-flex align-items-end pb-2">
+							<div class="form-check"><input type="checkbox" class="form-check-input" id="pr-active" checked /><label class="form-check-label small" for="pr-active">Activo (visible en el catálogo)</label></div>
+						</div>
+						<div class="col-12 col-md-6">
+							<label class="form-label small fw-bold text-muted">Categoría</label>
+							<select class="form-select" id="pr-category">
+								<option value="">Sin categoría</option>
+								{categories.map((c) => <option value={c._id.toString()}>{c.name}</option>)}
+							</select>
+						</div>
+						<div class="col-12 col-md-6">
+							<label class="form-label small fw-bold text-muted">Etiquetas</label>
+							<div class="d-flex flex-wrap gap-2 border rounded p-2" style="max-height:90px;overflow:auto;">
+								{tags.length === 0 ? <span class="text-muted small">No hay etiquetas creadas.</span> : tags.map((t) => (
+									<label class="d-inline-flex align-items-center gap-1 small">
+										<input type="checkbox" class="form-check-input pr-tag" value={t._id.toString()} />
+										<span class="badge" style={`background:${t.color}; color:#000; border:1px solid rgba(0,0,0,.15);`}>{t.name}</span>
+									</label>
+								))}
+							</div>
+						</div>
+						<div class="col-12">
+							<label class="form-label small fw-bold text-muted">Imágenes</label>
+							<div id="pr-images" class="d-flex flex-wrap gap-2 mb-2"></div>
+							<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" id="pr-add-image"><i class="ri-image-add-line me-1"></i> Añadir imagen</button>
+							<input type="file" id="pr-image-file" class="d-none" accept="image/*" multiple />
+							<div class="progress mt-2 d-none" id="pr-img-progress" style="height:6px;"><div class="progress-bar bg-dark" id="pr-img-progress-bar" style="width:0%"></div></div>
+						</div>
+						<div class="col-12">
+							<label class="form-label small fw-bold text-muted">Puntos destacados (uno por línea)</label>
+							<textarea class="form-control" id="pr-highlights" rows="3" placeholder="Doble motor silencioso&#10;Memoria de 4 alturas"></textarea>
+						</div>
+						<div class="col-12">
+							<label class="form-label small fw-bold text-muted">Especificaciones (tabla)</label>
+							<div id="pr-specs" class="d-flex flex-column gap-2 mb-2"></div>
+							<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" id="pr-add-spec"><i class="ri-add-line me-1"></i> Añadir fila</button>
+						</div>
+					</div>
+					<div class="alert alert-danger d-none mt-3 py-2 small" id="pr-error"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="save-product-btn">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<style>
+		.action-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 1.05rem; }
+		.product-row { transition: box-shadow 0.2s ease, transform 0.15s ease; }
+		.product-row:hover { box-shadow: 0 6px 18px rgba(15,23,42,0.08); }
+	</style>
+
+	<script set:html={`window.CX_PRODUCTS = ${productsData};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const products = window.CX_PRODUCTS || [];
+			const productsById = new Map(products.map((p) => [p.id, p]));
+			const $ = (id) => document.getElementById(id);
+			const modalEl = $('productModal');
+			const previewEl = $('previewModal');
+			const elError = $('pr-error');
+			const imagesWrap = $('pr-images');
+			const specsWrap = $('pr-specs');
+			let images = [];
+
+			function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+			// ---------- Buscador ----------
+			const search = $('product-search');
+			const rows = Array.from(document.querySelectorAll('.product-row'));
+			const emptyEl = $('product-empty');
+			search.addEventListener('input', () => {
+				const q = search.value.toLowerCase().trim();
+				let visible = 0;
+				rows.forEach((r) => {
+					const ok = (r.getAttribute('data-search') || '').includes(q);
+					r.style.display = ok ? '' : 'none';
+					if (ok) visible++;
+				});
+				emptyEl.classList.toggle('d-none', visible !== 0);
+			});
+
+			// ---------- Imágenes ----------
+			function renderImages() {
+				imagesWrap.innerHTML = images.map((url, i) => `
+					<div class="position-relative" style="width:74px;height:74px;">
+						<img src="${esc(url)}" style="width:74px;height:74px;object-fit:contain;background:#f3f4f6;border-radius:6px;border:1px solid #eee;" />
+						<button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 p-0 rm-img" data-i="${i}" style="width:20px;height:20px;line-height:1;border-radius:50%;">&times;</button>
+					</div>`).join('');
+				imagesWrap.querySelectorAll('.rm-img').forEach((b) => b.addEventListener('click', () => { images.splice(parseInt(b.getAttribute('data-i'), 10), 1); renderImages(); }));
+			}
+			const imgProgress = $('pr-img-progress');
+			const imgProgressBar = $('pr-img-progress-bar');
+			function uploadImage(file) {
+				return new Promise((resolve, reject) => {
+					const fd = new FormData(); fd.append('file', file);
+					const xhr = new XMLHttpRequest();
+					xhr.open('POST', '/api/catalog/products/upload');
+					xhr.upload.addEventListener('progress', (e) => { if (e.lengthComputable) imgProgressBar.style.width = `${Math.round((e.loaded * 100) / e.total)}%`; });
+					xhr.addEventListener('load', () => {
+						if (xhr.status === 201) { const r = JSON.parse(xhr.responseText); resolve(r.url || r.path); }
+						else { try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error('Error al subir')); } }
+					});
+					xhr.addEventListener('error', () => reject(new Error('Error de red')));
+					xhr.send(fd);
+				});
+			}
+			$('pr-add-image').addEventListener('click', () => $('pr-image-file').click());
+			$('pr-image-file').addEventListener('change', async () => {
+				const files = $('pr-image-file').files;
+				if (!files || !files.length) return;
+				elError.classList.add('d-none');
+				imgProgress.classList.remove('d-none');
+				for (const file of Array.from(files)) {
+					try { images.push(await uploadImage(file)); renderImages(); }
+					catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+				}
+				imgProgress.classList.add('d-none'); imgProgressBar.style.width = '0%';
+				$('pr-image-file').value = '';
+			});
+
+			// ---------- Specs ----------
+			function addSpecRow(label = '', value = '') {
+				const row = document.createElement('div');
+				row.className = 'd-flex gap-2 spec-row';
+				row.innerHTML = `
+					<input type="text" class="form-control form-control-sm spec-label" placeholder="Etiqueta (ej. Material)" value="${esc(label)}" />
+					<input type="text" class="form-control form-control-sm spec-value" placeholder="Valor (ej. Aluminio)" value="${esc(value)}" />
+					<button type="button" class="btn btn-sm btn-outline-danger rm-spec"><i class="ri-close-line"></i></button>`;
+				row.querySelector('.rm-spec').addEventListener('click', () => row.remove());
+				specsWrap.appendChild(row);
+			}
+			$('pr-add-spec').addEventListener('click', () => addSpecRow());
+
+			// ---------- Modal crear/editar ----------
+			function openModal(p) {
+				elError.classList.add('d-none');
+				$('pr-id').value = p ? p.id : '';
+				$('pr-name').value = p ? p.name : '';
+				$('pr-sku').value = p ? p.sku : '';
+				$('pr-description').value = p ? p.description : '';
+				$('pr-active').checked = p ? p.is_active : true;
+				$('pr-category').value = (p && p.category_id) || '';
+				document.querySelectorAll('.pr-tag').forEach((cb) => { cb.checked = !!p && p.tag_ids.includes(cb.value); });
+				$('pr-highlights').value = ((p && p.highlights) || []).join('\n');
+				images = [...((p && p.images) || [])]; renderImages();
+				specsWrap.innerHTML = '';
+				((p && p.spec_table) || []).forEach((r) => addSpecRow(r.label, r.value));
+				$('productModalTitle').textContent = p ? 'Editar producto' : 'Nuevo producto';
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			}
+
+			$('new-product-btn').addEventListener('click', () => openModal());
+			document.querySelectorAll('.edit-product-btn').forEach((btn) => {
+				btn.addEventListener('click', () => openModal(productsById.get(btn.closest('[data-id]').getAttribute('data-id'))));
+			});
+
+			// ---------- Preview ----------
+			function openPreview(p) {
+				const imgs = p.images && p.images.length ? p.images : ['/img/logo-cx-ergonomic.webp'];
+				const tagsHtml = (p.tags || []).map((t) => `<span class="badge me-1" style="background:${esc(t.color)};color:#000;border:1px solid rgba(0,0,0,.15);">${esc(t.name)}</span>`).join('');
+				const hl = (p.highlights || []).map((h) => `<li>${esc(h)}</li>`).join('');
+				const specs = (p.spec_table || []).map((r) => `<tr><th class="text-muted fw-normal py-1" style="width:40%">${esc(r.label)}</th><td class="py-1 fw-semibold">${esc(r.value)}</td></tr>`).join('');
+				$('preview-body').innerHTML = `
+					<div class="row g-4">
+						<div class="col-12 col-md-5">
+							<div class="border rounded-3 d-flex align-items-center justify-content-center p-3" style="min-height:240px;background:#f8f9fa;">
+								<img src="${esc(imgs[0])}" style="max-width:100%;max-height:230px;object-fit:contain;" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+							</div>
+							<div class="d-flex gap-2 mt-2 flex-wrap">
+								${imgs.slice(1).map((u) => `<img src="${esc(u)}" style="width:54px;height:54px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#f8f9fa;" />`).join('')}
+							</div>
+						</div>
+						<div class="col-12 col-md-7">
+							<div class="mb-2">${tagsHtml || ''}</div>
+							<div class="text-muted small">SKU: ${esc(p.sku)} · ${esc(p.category_name || 'Sin categoría')}</div>
+							<h4 class="fw-bold mt-1 mb-3">${esc(p.name)}</h4>
+							<p class="text-muted">${esc(p.description)}</p>
+							${hl ? `<ul class="small">${hl}</ul>` : ''}
+							${specs ? `<table class="table table-sm mt-2"><tbody>${specs}</tbody></table>` : ''}
+							${p.slug ? `<a href="/producto/${esc(p.slug)}" target="_blank" rel="noopener" class="small">Ver página pública <i class="ri-external-link-line"></i></a>` : ''}
+						</div>
+					</div>`;
+				$('preview-edit-btn').onclick = () => { bs().Modal.getInstance(previewEl).hide(); openModal(p); };
+				bs().Modal.getOrCreateInstance(previewEl).show();
+			}
+			document.querySelectorAll('.view-product-btn').forEach((btn) => {
+				btn.addEventListener('click', () => openPreview(productsById.get(btn.closest('[data-id]').getAttribute('data-id'))));
+			});
+
+			// ---------- Guardar ----------
+			$('save-product-btn').addEventListener('click', async () => {
+				elError.classList.add('d-none');
+				const id = $('pr-id').value;
+				const specRows = Array.from(specsWrap.querySelectorAll('.spec-row')).map((r) => ({
+					label: r.querySelector('.spec-label').value.trim(),
+					value: r.querySelector('.spec-value').value.trim(),
+				})).filter((r) => r.label && r.value);
+				const payload = {
+					id,
+					name: $('pr-name').value.trim(),
+					sku: $('pr-sku').value.trim(),
+					description: $('pr-description').value.trim(),
+					category_id: $('pr-category').value || null,
+					tag_ids: Array.from(document.querySelectorAll('.pr-tag:checked')).map((cb) => cb.value),
+					highlights: $('pr-highlights').value.split('\n').map((l) => l.trim()).filter(Boolean),
+					spec_table: specRows,
+					images,
+					is_active: $('pr-active').checked,
+				};
+				if (!payload.name || !payload.sku || !payload.description) {
+					elError.textContent = 'Nombre, SKU y descripción son obligatorios.';
+					elError.classList.remove('d-none'); return;
+				}
+				try {
+					const res = await fetch(id ? '/api/catalog/products/update' : '/api/catalog/products/create', {
+						method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar');
+					window.location.reload();
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+			});
+
+			document.querySelectorAll('.delete-product-btn').forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					const id = btn.closest('[data-id]').getAttribute('data-id');
+					if (!confirm('¿Eliminar este producto?')) return;
+					const res = await fetch('/api/catalog/products/delete', {
+						method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }),
+					});
+					if (res.ok) window.location.reload(); else alert('No se pudo eliminar.');
+				});
+			});
+		})();
+	</script>
+</AdminLayout>

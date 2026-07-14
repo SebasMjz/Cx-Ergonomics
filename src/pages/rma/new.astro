@@ -1,0 +1,699 @@
+---
+// Public Ticket Creation Page
+import { connectMongoose } from '../../lib/mongo';
+import { getSiteSettings } from '../../lib/models/SiteSettings';
+
+await connectMongoose();
+const settings = await getSiteSettings();
+const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
+---
+
+<html lang="es" data-bs-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0, viewport-fit=cover" />
+		<title>Formulario de RMA</title>
+		<meta name="description" content="Formulario público para registrar y dar seguimiento a solicitudes de garantía (RMA)." />
+		
+		<!-- Astero Admin CSS -->
+		<link href="/css/style.css" rel="stylesheet" />
+		<link href="/css/skin.css" rel="stylesheet" />
+
+		<!-- Remix Icons -->
+		<link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet" />
+
+		<!-- Source Sans 3 from Google Fonts -->
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body class="bg-white py-0">
+		<!-- Encabezado neutro (white-label): sin logo, solo el título y una franja de color -->
+		<header class="cx-topbar w-100 bg-body py-3 px-4 d-flex justify-content-center align-items-center border-bottom shadow-sm position-relative" style="z-index: 2; border-bottom: 3px solid #000000 !important;">
+			<span class="fw-bold text-dark" style="letter-spacing: 0.02em;">Formulario de RMA</span>
+		</header>
+
+		<div class="container py-5 position-relative" style="z-index: 1;">
+			<div class="row justify-content-center">
+				<div class="col-12 col-md-10 col-lg-7">
+
+					<!-- Selection Screen -->
+					<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body mb-4" id="selection-container">
+						<header class="mb-4 pb-3 border-bottom text-center">
+							<h1 class="h3 fw-bold mb-1 text-dark">Servicio de Garantías (RMA)</h1>
+							<p class="text-muted small mb-0">Selecciona una opción para continuar</p>
+						</header>
+						<div class="row g-4 mt-2">
+							<div class="col-12 col-md-6">
+								<div class="card h-100 border p-4 text-center hover-shadow transition" style="cursor: pointer;" id="select-register-btn">
+									<div class="mb-3 text-primary">
+										<i class="ri-shield-flash-line" style="font-size: 3rem; color: #0d6efd;"></i>
+									</div>
+									<h3 class="h5 fw-bold text-dark mb-2">Registrar Garantía</h3>
+									<p class="text-muted small mb-4">Inicia una nueva solicitud para reportar una falla o inconveniente con tu producto.</p>
+									<button type="button" class="btn btn-dark w-100 rounded-pill py-2 mt-auto">Comenzar</button>
+								</div>
+							</div>
+							<div class="col-12 col-md-6">
+								<div class="card h-100 border p-4 text-center hover-shadow transition" style="cursor: pointer;" id="select-track-btn">
+									<div class="mb-3 text-success">
+										<i class="ri-map-pin-time-line" style="font-size: 3rem; color: #198754;"></i>
+									</div>
+									<h3 class="h5 fw-bold text-dark mb-2">Rastrear mi Caso</h3>
+									<p class="text-muted small mb-4">Consulta el estado actual y añade evidencias a una solicitud previamente registrada.</p>
+									<button type="button" class="btn btn-outline-dark w-100 rounded-pill py-2 mt-auto">Consultar</button>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					{warrantyPolicy && (
+						<!-- Warranty Policy Gate: el cliente debe leer y aceptar antes del formulario -->
+						<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body d-none" id="policy-container">
+							<header class="mb-4 pb-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+								<h1 class="h3 fw-bold mb-1 text-dark"><i class="ri-shield-check-line me-2"></i>Cobertura de Garantía</h1>
+								<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 back-to-selection-btn"><i class="ri-arrow-left-line me-1"></i>Volver atrás</button>
+							</header>
+							<p class="text-muted small mb-3">Por favor lee nuestras políticas antes de registrar tu solicitud.</p>
+							<div class="p-3 p-md-4 bg-body-tertiary border rounded-3 mb-4" style="max-height: 50vh; overflow-y: auto; white-space: pre-line; font-size: 0.9rem; line-height: 1.6;">{warrantyPolicy}</div>
+							<div class="form-check mb-4">
+								<input class="form-check-input" type="checkbox" id="accept-policy-check" />
+								<label class="form-check-label small fw-semibold" for="accept-policy-check">
+									He leído y acepto las políticas de cobertura de garantía.
+								</label>
+							</div>
+							<button type="button" class="btn btn-dark w-100 py-2.5 fw-bold rounded-pill" id="accept-policy-btn" disabled>
+								Continuar con la solicitud <i class="ri-arrow-right-line ms-1"></i>
+							</button>
+						</div>
+					)}
+
+					<!-- Form Card -->
+					<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body d-none" id="form-container">
+						<header class="mb-4 pb-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+							<div>
+								<h1 class="h3 fw-bold mb-1 text-dark">Solicitud de Garantía (RMA)</h1>
+								<p class="text-muted small mb-0">Completa los siguientes datos para reportar un inconveniente con tu producto.</p>
+							</div>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 back-to-selection-btn"><i class="ri-arrow-left-line me-1"></i>Volver atrás</button>
+						</header>
+
+						<form id="public-rma-form" class="needs-validation" novalidate>
+							<!-- Client Information -->
+							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">1. Datos del Cliente</h5>
+							
+							<div class="row g-3 mb-4">
+								<div class="col-12">
+									<label for="customerName" class="form-label text-muted small fw-bold">Nombre Completo</label>
+									<input type="text" class="form-control" id="customerName" required placeholder="Ej. Juan Pérez" />
+								</div>
+								
+								<div class="col-12 col-sm-6">
+									<label for="customerCi" class="form-label text-muted small fw-bold">Cédula o Identificación</label>
+									<input type="text" class="form-control" id="customerCi" required placeholder="Ej. V-12345678" />
+								</div>
+								
+								<div class="col-12 col-sm-6">
+									<label for="customerPhone" class="form-label text-muted small fw-bold">Teléfono de Contacto</label>
+									<input type="tel" class="form-control" id="customerPhone" required placeholder="Ej. 0414-1234567" />
+								</div>
+
+								<div class="col-12 col-sm-6">
+									<label for="customerDepartment" class="form-label text-muted small fw-bold">Departamento</label>
+									<select class="form-select" id="customerDepartment" required>
+										<option value="" selected disabled>Selecciona tu departamento</option>
+										<option value="La Paz">La Paz</option>
+										<option value="Santa Cruz">Santa Cruz</option>
+										<option value="Cochabamba">Cochabamba</option>
+										<option value="Oruro">Oruro</option>
+										<option value="Potosí">Potosí</option>
+										<option value="Chuquisaca">Chuquisaca</option>
+										<option value="Tarija">Tarija</option>
+										<option value="Beni">Beni</option>
+										<option value="Pando">Pando</option>
+									</select>
+								</div>
+
+								<div class="col-12 col-sm-6">
+									<label for="customerCity" class="form-label text-muted small fw-bold">Ciudad</label>
+									<input type="text" class="form-control" id="customerCity" required placeholder="Ej. El Alto" />
+								</div>
+							</div>
+
+							<!-- Product Information -->
+							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">2. Información del Producto</h5>
+							
+							<div class="row g-3 mb-4">
+								<div class="col-12">
+									<label for="productSerialNumber" class="form-label text-muted small fw-bold">Número de Serial (S/N)</label>
+									<input type="text" class="form-control" id="productSerialNumber" required placeholder="Ej. MESA-PRO-2026-001" />
+									<div class="form-text small text-muted">Lo encontrarás en la etiqueta adhesiva debajo de tu mesa o brazo.</div>
+								</div>
+								
+								<div class="col-12">
+									<label for="issueDescription" class="form-label text-muted small fw-bold">Descripción del Problema</label>
+									<textarea class="form-control" id="issueDescription" rows="4" required placeholder="Describe detalladamente qué falla presenta tu equipo..."></textarea>
+								</div>
+							</div>
+
+							<!-- File Uploads -->
+							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">3. Archivos y Evidencias</h5>
+							
+							<div class="row g-3 mb-5">
+								<!-- Receipt Image Upload -->
+								<div class="col-12 col-sm-6">
+									<label class="form-label text-muted small fw-bold">Foto de Factura de Compra (1 requerida)</label>
+									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="receipt-upload-zone" style="cursor: pointer; min-height: 120px;">
+										<i class="ri-file-paper-line fs-1 text-muted mb-2 d-block"></i>
+										<span class="small d-block text-secondary fw-semibold upload-label">Seleccionar imagen</span>
+										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP</span>
+										<input type="file" id="receipt-file" class="d-none" accept="image/*" />
+									</div>
+									<div class="progress mt-2 d-none" id="receipt-progress-container" style="height: 6px;">
+										<div class="progress-bar bg-dark" role="progressbar" id="receipt-progress-bar" style="width: 0%;"></div>
+									</div>
+									<small class="text-success d-none mt-1" id="receipt-success-label"><i class="ri-checkbox-circle-line me-1"></i>Factura subida con éxito</small>
+								</div>
+
+								<!-- Evidence Files Upload (Multiple: Images or Videos) -->
+								<div class="col-12 col-sm-6">
+									<label class="form-label text-muted small fw-bold">Evidencias de Falla (máx. 3. Fotos y/o videos)</label>
+									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="evidence-upload-zone" style="cursor: pointer; min-height: 120px;">
+										<i class="ri-folder-video-line fs-1 text-muted mb-2 d-block"></i>
+										<span class="small d-block text-secondary fw-semibold upload-label">Subir fotos y/o videos</span>
+										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP, MP4, MOV, WEBM</span>
+										<input type="file" id="evidence-file" class="d-none" accept="image/*,video/*" multiple />
+									</div>
+									<div class="progress mt-2 d-none" id="evidence-progress-container" style="height: 6px;">
+										<div class="progress-bar bg-dark" role="progressbar" id="evidence-progress-bar" style="width: 0%;"></div>
+									</div>
+									<div id="evidence-preview-list" class="mt-3 d-flex flex-column gap-2">
+										<!-- Dynamically populated previews of uploaded files -->
+									</div>
+								</div>
+							</div>
+
+							<!-- Submission Button & Status -->
+							<button type="submit" class="btn btn-dark w-100 py-2.5 fw-bold rounded-pill" id="submit-btn">
+								Enviar Solicitud de Garantía
+							</button>
+
+							<div class="alert alert-danger d-none mt-3" id="error-alert" role="alert"></div>
+							
+							<div class="text-center mt-4">
+								<a href="/login" class="text-decoration-none text-muted small"><i class="ri-arrow-left-line me-1"></i>Volver al Acceso Personal</a>
+							</div>
+						</form>
+					</div>
+
+					<!-- Success Confirmation container (with animated checkmark) -->
+					<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body text-center d-none" id="success-container">
+						<div class="success-checkmark mb-4">
+							<div class="check-icon">
+								<span class="icon-line line-tip"></span>
+								<span class="icon-line line-long"></span>
+								<div class="icon-circle"></div>
+							</div>
+						</div>
+						<h2 class="h3 fw-bold mt-3 text-dark">Solicitud Registrada</h2>
+						<p class="text-muted mt-2">Hemos recibido tu caso correctamente. Un técnico revisará la información adjunta.</p>
+						
+						<!-- Generated ticket info -->
+						<div class="my-4 p-3 bg-body-tertiary border rounded-3">
+							<small class="text-muted d-block text-uppercase mb-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">Código de Seguimiento</small>
+							<strong class="h4 text-dark d-block fw-bold" id="generated-ticket-number">RMA-2026-XXXX</strong>
+						</div>
+
+						<p class="text-muted small">Guarda este código para cualquier consulta sobre tu garantía. Te contactaremos pronto.</p>
+						<a href="/rma/new" class="btn btn-outline-dark rounded-pill px-4 mt-4 fw-semibold">Registrar otra solicitud</a>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+		<!-- Spinner Loader Overlay -->
+		<div id="loader-overlay" class="d-none">
+			<div class="spinner-border text-dark" role="status" style="width: 3rem; height: 3rem;">
+				<span class="visually-hidden">Cargando...</span>
+			</div>
+			<h4 class="mt-3 fw-bold text-dark">Registrando caso...</h4>
+			<p class="text-muted small">Por favor, no cierres esta ventana.</p>
+		</div>
+
+		<style>
+			:root, [data-bs-theme='light'] {
+				--bs-primary: #212529;
+				--bs-primary-rgb: 33, 37, 41;
+				--bs-link-color: #495057;
+				--bs-link-hover-color: #212529;
+			}
+			/* Watermark de fondo: logo CX en mosaico, invertido a gris y muy tenue
+			   para que se lea como una sombra sin interferir con el formulario. */
+			.cx-watermark {
+				position: fixed;
+				inset: 0;
+				z-index: 0;
+				pointer-events: none;
+				background-image: url('/img/logo-cx-ergonomic.webp');
+				background-repeat: repeat;
+				background-size: 240px auto;
+				/* El logo es blanco: lo invertimos a oscuro para que contraste sobre el fondo claro. */
+				filter: invert(1) grayscale(1);
+				opacity: 0.06;
+			}
+			.upload-zone {
+				transition: border-color 0.2s, background-color 0.2s;
+			}
+			.upload-zone:hover {
+				border-color: #212529 !important;
+				background-color: var(--bs-secondary-bg) !important;
+			}
+
+			/* Loader Overlay background */
+			#loader-overlay {
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100vw;
+				height: 100vh;
+				background: rgba(255, 255, 255, 0.9);
+				display: flex;
+				flex-direction: column;
+				justify-content: center;
+				align-items: center;
+				z-index: 9999;
+			}
+
+			/* Success Checkmark Animation */
+			.success-checkmark {
+				width: 80px;
+				height: 80px;
+				margin: 0 auto;
+			}
+			.success-checkmark .check-icon {
+				width: 80px;
+				height: 80px;
+				position: relative;
+				border-radius: 50%;
+				box-sizing: content-box;
+				border: 4px solid #198754;
+			}
+			.success-checkmark .check-icon::after {
+				top: 17px;
+				left: 47px;
+				width: 30px;
+				height: 30px;
+				background-color: #fff;
+				transform: rotate(45deg);
+			}
+			.success-checkmark .check-icon .icon-line {
+				height: 5px;
+				background-color: #198754;
+				display: block;
+				border-radius: 2px;
+				position: absolute;
+				z-index: 10;
+			}
+			.success-checkmark .check-icon .icon-line.line-tip {
+				top: 46px;
+				left: 14px;
+				width: 25px;
+				transform: rotate(45deg);
+				animation: icon-line-tip 0.75s;
+			}
+			.success-checkmark .check-icon .icon-line.line-long {
+				top: 38px;
+				right: 8px;
+				width: 47px;
+				transform: rotate(-45deg);
+				animation: icon-line-long 0.75s;
+			}
+			.success-checkmark .check-icon .icon-circle {
+				top: -4px;
+				left: -4px;
+				box-sizing: content-box;
+				border: 4px solid rgba(25, 135, 84, .2);
+				width: 80px;
+				height: 80px;
+				border-radius: 50%;
+				position: absolute;
+				z-index: 1;
+			}
+
+			@keyframes icon-line-tip {
+				0% { width: 0; left: 1px; top: 19px; }
+				54% { width: 0; left: 1px; top: 19px; }
+				70% { width: 50px; left: -8px; top: 37px; }
+				84% { width: 17px; left: 21px; top: 48px; }
+				100% { width: 25px; left: 14px; top: 46px; }
+			}
+			@keyframes icon-line-long {
+				0% { width: 0; right: 46px; top: 54px; }
+				65% { width: 0; right: 46px; top: 54px; }
+				84% { width: 55px; right: 0px; top: 35px; }
+				100% { width: 47px; right: 8px; top: 38px; }
+			}
+			@keyframes fadeInUp {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+			.fade-in-up {
+				animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+			}
+		</style>
+
+		<script>
+			document.addEventListener('DOMContentLoaded', () => {
+				// ---- Gate de selección y políticas de garantía ----
+				const selectionContainer = document.querySelector<HTMLElement>('#selection-container');
+				const policyContainer = document.querySelector<HTMLElement>('#policy-container');
+				const policyCheck = document.querySelector<HTMLInputElement>('#accept-policy-check');
+				const policyBtn = document.querySelector<HTMLButtonElement>('#accept-policy-btn');
+				const formCard = document.querySelector<HTMLElement>('#form-container');
+
+				// Detect if request is from the admin dashboard
+				const isFromDashboard = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+
+				if (isFromDashboard) {
+					// Redirect straight to form card
+					selectionContainer?.classList.add('d-none');
+					policyContainer?.classList.add('d-none');
+					formCard?.classList.remove('d-none');
+
+					// Update back link in success screen to return to dashboard
+					const successLink = document.querySelector('#success-container a');
+					if (successLink) {
+						successLink.setAttribute('href', '/rma');
+						successLink.textContent = 'Volver al Dashboard';
+					}
+
+					// Update return to login link at the bottom of the form to go to dashboard
+					const returnLink = document.querySelector('#public-rma-form .text-center a');
+					if (returnLink) {
+						returnLink.setAttribute('href', '/rma');
+						returnLink.innerHTML = '<i class="ri-arrow-left-line me-1"></i>Volver al Dashboard';
+					}
+				}
+
+				document.querySelector('#select-register-btn')?.addEventListener('click', () => {
+					selectionContainer?.classList.add('d-none');
+					if (policyContainer) {
+						policyContainer.classList.remove('d-none');
+					} else if (formCard) {
+						formCard.classList.remove('d-none');
+					}
+					window.scrollTo({ top: 0, behavior: 'smooth' });
+				});
+
+				document.querySelector('#select-track-btn')?.addEventListener('click', () => {
+					window.location.href = '/seguimiento';
+				});
+
+				document.querySelectorAll('.back-to-selection-btn').forEach(btn => {
+					btn.addEventListener('click', () => {
+						if (isFromDashboard) {
+							window.location.href = '/rma';
+						} else {
+							policyContainer?.classList.add('d-none');
+							formCard?.classList.add('d-none');
+							selectionContainer?.classList.remove('d-none');
+							if (policyCheck) {
+								policyCheck.checked = false;
+							}
+							if (policyBtn) {
+								policyBtn.disabled = true;
+							}
+							window.scrollTo({ top: 0, behavior: 'smooth' });
+						}
+					});
+				});
+
+				policyCheck?.addEventListener('change', () => {
+					if (policyBtn) policyBtn.disabled = !policyCheck.checked;
+				});
+				policyBtn?.addEventListener('click', () => {
+					policyContainer?.classList.add('d-none');
+					formCard?.classList.remove('d-none');
+					window.scrollTo({ top: 0, behavior: 'smooth' });
+				});
+
+				const form = document.querySelector<HTMLFormElement>('#public-rma-form');
+				const receiptZone = document.querySelector<HTMLElement>('#receipt-upload-zone');
+				const receiptInput = document.querySelector<HTMLInputElement>('#receipt-file');
+				const evidenceZone = document.querySelector<HTMLElement>('#evidence-upload-zone');
+				const evidenceInput = document.querySelector<HTMLInputElement>('#evidence-file');
+				
+				const submitBtn = document.querySelector<HTMLButtonElement>('#submit-btn');
+				const errorAlert = document.querySelector<HTMLElement>('#error-alert');
+				const formContainer = document.querySelector<HTMLElement>('#form-container');
+				const successContainer = document.querySelector<HTMLElement>('#success-container');
+				const generatedTicketLabel = document.querySelector<HTMLElement>('#generated-ticket-number');
+				const loaderOverlay = document.querySelector<HTMLElement>('#loader-overlay');
+
+				let receiptUrl = '';
+				let evidenceUrls: string[] = [];
+
+				// Setup File Selection triggers
+				receiptZone?.addEventListener('click', () => receiptInput?.click());
+				evidenceZone?.addEventListener('click', () => evidenceInput?.click());
+
+				// Upload file helper function
+				async function uploadFile(file: File, kind: 'receipt' | 'video', progressCallback: (pct: number) => void): Promise<string> {
+					const formData = new FormData();
+					formData.append('file', file);
+
+					return new Promise((resolve, reject) => {
+						const xhr = new XMLHttpRequest();
+						xhr.open('POST', `/api/tickets/upload?kind=${kind}`);
+						
+						xhr.upload.addEventListener('progress', (e) => {
+							if (e.lengthComputable) {
+								const percentage = Math.round((e.loaded * 100) / e.total);
+								progressCallback(percentage);
+							}
+						});
+
+						xhr.addEventListener('load', () => {
+							if (xhr.status === 201) {
+								try {
+									const res = JSON.parse(xhr.responseText);
+									resolve(res.path || res.url);
+								} catch (err) {
+									reject(new Error('Respuesta del servidor inválida'));
+								}
+							} else {
+								try {
+									const res = JSON.parse(xhr.responseText);
+									reject(new Error(res.error || `Error del servidor (${xhr.status})`));
+								} catch {
+									reject(new Error(`Error en la carga (${xhr.status})`));
+								}
+							}
+						});
+
+						xhr.addEventListener('error', () => reject(new Error('Error de conexión a la red')));
+						xhr.send(formData);
+					});
+				}
+
+				// Handle Receipt File selection
+				receiptInput?.addEventListener('change', async () => {
+					const files = receiptInput.files;
+					if (!files || files.length === 0) return;
+
+					const file = files[0];
+					const label = receiptZone?.querySelector('.upload-label');
+					const progressContainer = document.querySelector('#receipt-progress-container');
+					const progressBar = document.querySelector('#receipt-progress-bar') as HTMLElement;
+					const successLabel = document.querySelector('#receipt-success-label');
+
+					try {
+						errorAlert?.classList.add('d-none');
+						if (label) label.textContent = 'Subiendo...';
+						progressContainer?.classList.remove('d-none');
+						if (successLabel) successLabel.classList.add('d-none');
+
+						receiptUrl = await uploadFile(file, 'receipt', (pct) => {
+							if (progressBar) progressBar.style.width = `${pct}%`;
+						});
+
+						if (label) label.textContent = file.name;
+						if (successLabel) successLabel.classList.remove('d-none');
+					} catch (err: any) {
+						if (label) label.textContent = 'Seleccionar imagen';
+						progressContainer?.classList.add('d-none');
+						if (errorAlert) {
+							errorAlert.textContent = `Error al subir la factura: ${err.message}`;
+							errorAlert.classList.remove('d-none');
+						}
+						receiptInput.value = '';
+					}
+				});
+
+				// Previews renderer for multiple evidences
+				function renderEvidencePreviews() {
+					const list = document.getElementById('evidence-preview-list');
+					if (!list) return;
+					
+					list.innerHTML = evidenceUrls.map((url, idx) => {
+						const ext = url.split('.').pop()?.toLowerCase();
+						const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
+						return `
+							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light">
+								<div class="d-flex align-items-center gap-2 overflow-hidden">
+									${isVideo ? '<i class="ri-video-line text-primary fs-5"></i>' : '<i class="ri-image-line text-success fs-5"></i>'}
+									<span class="small text-truncate" style="max-width: 180px;">${url.split('/').pop()}</span>
+								</div>
+								<button type="button" class="btn btn-sm btn-link text-danger p-0 delete-evidence-btn" data-index="${idx}">
+									<i class="ri-delete-bin-line"></i> Quitar
+								</button>
+							</div>
+						`;
+					}).join('');
+
+					// Add click listeners to delete buttons
+					document.querySelectorAll('.delete-evidence-btn').forEach(btn => {
+						btn.addEventListener('click', (e) => {
+							e.stopPropagation();
+							const index = parseInt(btn.getAttribute('data-index') || '0', 10);
+							evidenceUrls.splice(index, 1);
+							renderEvidencePreviews();
+						});
+					});
+				}
+
+				// Handle Multiple Evidences selection (Photos / Videos)
+				evidenceInput?.addEventListener('change', async () => {
+					const files = evidenceInput.files;
+					if (!files || files.length === 0) return;
+
+					const label = evidenceZone?.querySelector('.upload-label');
+					const progressContainer = document.querySelector('#evidence-progress-container');
+					const progressBar = document.querySelector('#evidence-progress-bar') as HTMLElement;
+
+					for (let i = 0; i < files.length; i++) {
+						const file = files[i];
+						
+						if (evidenceUrls.length >= 3) {
+							alert('Puedes subir como máximo 3 archivos de evidencia.');
+							break;
+						}
+
+						try {
+							errorAlert?.classList.add('d-none');
+							if (label) label.textContent = `Subiendo ${file.name}...`;
+							progressContainer?.classList.remove('d-none');
+
+							// Choose kind dynamically matching Mongoose router restrictions:
+							// Receipts allows only images, videos allows only videos.
+							const kind = file.type.startsWith('video/') ? 'video' : 'receipt';
+							
+							const url = await uploadFile(file, kind, (pct) => {
+								if (progressBar) progressBar.style.width = `${pct}%`;
+							});
+
+							evidenceUrls.push(url);
+							renderEvidencePreviews();
+						} catch (err: any) {
+							if (errorAlert) {
+								errorAlert.textContent = `Error al subir ${file.name}: ${err.message}`;
+								errorAlert.classList.remove('d-none');
+							}
+						}
+					}
+
+					if (label) label.textContent = 'Subir fotos y/o videos';
+					progressContainer?.classList.add('d-none');
+					evidenceInput.value = ''; // Reset input selection
+				});
+
+				// Handle Form submission
+				form?.addEventListener('submit', async (event) => {
+					event.preventDefault();
+					errorAlert?.classList.add('d-none');
+
+					if (!form.checkValidity()) {
+						form.classList.add('was-validated');
+						return;
+					}
+
+					// Validation: Factura is 1 photo, and evidence is min 1 and max 3 files (either photo or video)
+					if (!receiptUrl) {
+						if (errorAlert) {
+							errorAlert.textContent = 'Debes subir la factura de compra (1 foto).';
+							errorAlert.classList.remove('d-none');
+						}
+						return;
+					}
+
+					if (evidenceUrls.length < 1 || evidenceUrls.length > 3) {
+						if (errorAlert) {
+							errorAlert.textContent = 'Debes subir entre 1 y 3 archivos de evidencia de la falla (fotos y/o videos).';
+							errorAlert.classList.remove('d-none');
+						}
+						return;
+					}
+
+					try {
+						// Show spinner loader overlay
+						if (loaderOverlay) loaderOverlay.classList.remove('d-none');
+						if (submitBtn) submitBtn.disabled = true;
+
+						const payload = {
+							customerName: String(document.querySelector<HTMLInputElement>('#customerName')?.value ?? ''),
+							customerCi: String(document.querySelector<HTMLInputElement>('#customerCi')?.value ?? ''),
+							customerPhone: String(document.querySelector<HTMLInputElement>('#customerPhone')?.value ?? ''),
+							customerCity: String(document.querySelector<HTMLInputElement>('#customerCity')?.value ?? ''),
+							customerDepartment: String(document.querySelector<HTMLSelectElement>('#customerDepartment')?.value ?? ''),
+							productSerialNumber: String(document.querySelector<HTMLInputElement>('#productSerialNumber')?.value ?? ''),
+							issueDescription: String(document.querySelector<HTMLTextAreaElement>('#issueDescription')?.value ?? ''),
+							salesReceiptImage: receiptUrl,
+							evidenceVideo: evidenceUrls.join(','), // Send as comma-separated list
+						};
+
+						const response = await fetch('/api/tickets/create', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify(payload),
+						});
+
+						const data = await response.json();
+						if (!response.ok) {
+							throw new Error(data.error || 'Error al guardar el ticket en el sistema.');
+						}
+
+						// Hide loader overlay
+						if (loaderOverlay) loaderOverlay.classList.add('d-none');
+
+						// Show Success View with animated checkmark
+						if (generatedTicketLabel) generatedTicketLabel.textContent = data.ticket.ticket_number;
+						formContainer?.classList.add('d-none');
+						successContainer?.classList.remove('d-none');
+						successContainer?.classList.add('fade-in-up');
+						window.scrollTo({ top: 0, behavior: 'smooth' });
+					} catch (err: any) {
+						if (loaderOverlay) loaderOverlay.classList.add('d-none');
+						if (submitBtn) {
+							submitBtn.disabled = false;
+							submitBtn.textContent = 'Enviar Solicitud de Garantía';
+						}
+						if (errorAlert) {
+							errorAlert.textContent = err.message;
+							errorAlert.classList.remove('d-none');
+						}
+					}
+				});
+			});
+		</script>
+	</body>
+</html>

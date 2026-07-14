@@ -1,0 +1,186 @@
+---
+import PublicLayout from '../../components/PublicLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { ProductModel } from '../../lib/models/Product';
+import { getSiteSettings } from '../../lib/models/SiteSettings';
+import '../../lib/models/Category';
+import '../../lib/models/Tag';
+
+const { slug } = Astro.params;
+
+await connectMongoose();
+
+const product = await ProductModel.findOne({ slug, is_active: true })
+	.populate('category_id')
+	.populate({ path: 'tag_ids', strictPopulate: false })
+	.lean();
+
+if (!product) {
+	return new Response('Producto no encontrado', { status: 404 });
+}
+
+const category = product.category_id as any;
+const tags = (product.tag_ids as any[]) || [];
+const images = product.images?.length ? product.images : ['/img/logo-cx-ergonomic.webp'];
+
+const settings = await getSiteSettings();
+const whatsappNumber = settings.whatsapp_number_products || settings.whatsapp_number || '59170000000';
+
+// Devuelve negro o blanco según el color de fondo del badge para máximo contraste.
+function contrastColor(hex: string) {
+	const c = (hex || '#ffffff').replace('#', '');
+	const full = c.length === 3 ? c.split('').map((x) => x + x).join('') : c;
+	const r = parseInt(full.substring(0, 2), 16) || 0;
+	const g = parseInt(full.substring(2, 4), 16) || 0;
+	const b = parseInt(full.substring(4, 6), 16) || 0;
+	const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+	return luminance > 0.6 ? '#000' : '#fff';
+}
+---
+
+<PublicLayout title={`${product.name} | CX Ergonomic`} description={product.description} active="catalogo">
+	<section class="pdp">
+		<div class="container">
+			<!-- Breadcrumb -->
+			<nav class="pdp-breadcrumb mb-4">
+				<a href="/">Inicio</a>
+				<span class="sep">/</span>
+				{category && <><a href={`/#catalog-section`}>{category.name}</a><span class="sep">/</span></>}
+				<span class="current">{product.name}</span>
+			</nav>
+
+			<div class="row g-5">
+				<!-- Gallery -->
+				<div class="col-12 col-lg-7">
+					<div class="pdp-gallery">
+						<div class="pdp-thumbs">
+							{images.map((img, i) => (
+								<button class={`pdp-thumb ${i === 0 ? 'active' : ''}`} data-img={img} type="button">
+									<img src={img} alt={`${product.name} ${i + 1}`} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+								</button>
+							))}
+						</div>
+						<div class="pdp-main-image">
+							<img id="pdp-main-img" src={images[0]} alt={product.name} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+						</div>
+					</div>
+				</div>
+
+				<!-- Info panel -->
+				<div class="col-12 col-lg-5">
+					{tags.length > 0 && (
+						<div class="d-flex flex-wrap gap-2 mb-3">
+							{tags.map((t) => (
+								<span class="tag-badge" style={`background:${t.color}; color:${contrastColor(t.color)};`}>{t.name}</span>
+							))}
+						</div>
+					)}
+
+					<h1 class="pdp-title">{product.name}</h1>
+					<p class="pdp-desc-lead">{product.description}</p>
+
+					{product.highlights?.length > 0 && (
+						<ul class="pdp-highlights">
+							{product.highlights.map((h) => (
+								<li><i class="ri-checkbox-circle-line"></i><span>{h}</span></li>
+							))}
+						</ul>
+					)}
+
+					<div class="pdp-price-row">
+						<div class="pdp-sku">SKU: {product.sku}</div>
+					</div>
+
+					<div class="d-flex flex-wrap gap-2 mt-4">
+						<a 
+							href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hola, me interesa el producto ${product.name} (SKU: ${product.sku}). Quisiera recibir más información.`)}`} 
+							target="_blank" 
+							rel="noopener noreferrer" 
+							class="btn-cx-primary" 
+							style="background: #25d366; border-color: #25d366; color: #fff !important;"
+						>
+							<i class="ri-whatsapp-line"></i> WhatsApp (+{whatsappNumber})
+						</a>
+						<a href="/puntos-de-venta" class="btn-cx-ghost">Puntos de venta</a>
+					</div>
+				</div>
+			</div>
+
+			<!-- Specs -->
+			{product.spec_table?.length > 0 && (
+				<div class="pdp-specs">
+					<h2 class="section-heading text-start mb-4" style="font-size: 1.6rem;">Especificaciones</h2>
+					<div class="row">
+						<div class="col-12 col-lg-8">
+							<table class="spec-table">
+								<tbody>
+									{product.spec_table.map((row) => (
+										<tr>
+											<th>{row.label}</th>
+											<td>{row.value}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	</section>
+
+	<style is:global>
+		.pdp { padding: 2.5rem 0 4.5rem; }
+		.pdp-breadcrumb { font-size: 0.82rem; color: var(--text-muted); }
+		.pdp-breadcrumb a { color: var(--text-muted); text-decoration: none; }
+		.pdp-breadcrumb a:hover { color: #fff; }
+		.pdp-breadcrumb .sep { margin: 0 0.5rem; opacity: 0.5; }
+		.pdp-breadcrumb .current { color: #fff; }
+
+		.pdp-gallery { display: flex; gap: 1rem; }
+		.pdp-thumbs { display: flex; flex-direction: column; gap: 0.75rem; }
+		.pdp-thumb { width: 72px; height: 72px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 4px; padding: 0.35rem; cursor: pointer; transition: border-color 0.2s ease; }
+		.pdp-thumb.active, .pdp-thumb:hover { border-color: #fff; }
+		.pdp-thumb img { width: 100%; height: 100%; object-fit: contain; }
+		.pdp-main-image { flex: 1; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 6px; display: flex; align-items: center; justify-content: center; min-height: 420px; padding: 2.5rem; }
+		.pdp-main-image img { max-width: 100%; max-height: 460px; object-fit: contain; }
+
+		.pdp-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.8rem, 3.5vw, 2.7rem); line-height: 1.05; color: #fff; margin: 0 0 1rem; }
+		.pdp-desc-lead { color: var(--text-muted); line-height: 1.6; font-size: 1.02rem; }
+		.pdp-highlights { list-style: none; padding: 0; margin: 1.5rem 0; display: flex; flex-direction: column; gap: 0.7rem; }
+		.pdp-highlights li { display: flex; align-items: start; gap: 0.6rem; color: var(--text); font-size: 0.95rem; }
+		.pdp-highlights i { color: #fff; margin-top: 0.15rem; }
+
+		.pdp-price-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+		.pdp-price { font-family: var(--font-display); font-weight: 800; font-size: 2rem; color: #fff; }
+		.pdp-sku { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.25rem; }
+		.pdp-stock { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 0.4rem; }
+		.pdp-stock i { font-size: 0.55rem; }
+		.pdp-stock.in { color: #4ade80; }
+		.pdp-stock.out { color: var(--text-muted); }
+
+		.pdp-specs { margin-top: 4rem; padding-top: 3rem; border-top: 1px solid var(--line); }
+		.spec-table { width: 100%; border-collapse: collapse; }
+		.spec-table tr { border-bottom: 1px solid var(--line); }
+		.spec-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 0.9rem; padding: 0.9rem 1rem 0.9rem 0; width: 40%; }
+		.spec-table td { color: #fff; font-weight: 600; font-size: 0.92rem; padding: 0.9rem 0; }
+
+		@media (max-width: 575px) {
+			.pdp-gallery { flex-direction: column-reverse; }
+			.pdp-thumbs { flex-direction: row; }
+		}
+	</style>
+
+	<script>
+		// Cambia la imagen principal al hacer clic en una miniatura.
+		const mainImg = document.getElementById('pdp-main-img') as HTMLImageElement | null;
+		document.querySelectorAll('.pdp-thumb').forEach((thumb) => {
+			thumb.addEventListener('click', () => {
+				const img = thumb.getAttribute('data-img');
+				if (img && mainImg) mainImg.src = img;
+				document.querySelectorAll('.pdp-thumb').forEach((t) => t.classList.remove('active'));
+				thumb.classList.add('active');
+			});
+		});
+	</script>
+</PublicLayout>

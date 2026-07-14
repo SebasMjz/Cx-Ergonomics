@@ -1,0 +1,240 @@
+---
+import { connectMongoose } from '../lib/mongo';
+import { CategoryModel } from '../lib/models/Category';
+import { readCookieValue, verifyAuthToken } from '../lib/auth/jwt';
+
+interface Props {
+	active?: string;
+}
+const { active = '' } = Astro.props;
+
+await connectMongoose();
+const categories = await CategoryModel.find({ is_active: true }).sort({ name: 1 }).lean();
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+---
+
+<!-- Barra superior -->
+<div class="utility-bar">
+	<div class="container d-flex justify-content-end align-items-center gap-4 py-2">
+		<a href="/rma/new"><i class="ri-customer-service-2-line me-1"></i> Soporte</a>
+		{session ? (
+			<a href="/rma"><i class="ri-dashboard-line me-1"></i> Panel</a>
+		) : (
+			<a href="/login"><i class="ri-user-line me-1"></i> Iniciar sesión</a>
+		)}
+	</div>
+</div>
+
+<!-- Navegación principal con mega-menú -->
+<header class="main-nav sticky-top py-3">
+	<div class="container d-flex align-items-center">
+		<a href="/" class="brand">
+			<img src="/img/logo-cx-ergonomic.webp" alt="CX Ergonomic" style="max-height: 26px;" onerror="this.style.display='none'" />
+		</a>
+
+		<nav class="cx-mainnav d-none d-lg-flex align-items-center gap-4 mx-auto">
+			<!-- Catálogo -->
+			<div class="cx-navitem">
+				<a href="/catalogo" class={`nav-link-cx ${active === 'catalogo' ? 'active' : ''}`}>Catálogo <i class="ri-arrow-down-s-line cx-caret"></i></a>
+				<div class="cx-mega">
+					<div class="container">
+						<div class="cx-mega-grid">
+							<div class="cx-mega-col">
+								<span class="cx-mega-title">Categorías</span>
+								<ul class="cx-mega-list">
+									<li><a href="/catalogo">Todos los productos</a></li>
+									{categories.map((c) => (
+										<li><a href={`/catalogo?cat=${c.slug}`}>{c.name}</a></li>
+									))}
+								</ul>
+							</div>
+							<div class="cx-mega-feature">
+								<span class="cx-mega-title">Catálogo completo</span>
+								<p>Explora todo el mobiliario ergonómico y accesorios CX, con filtros por categoría y etiquetas.</p>
+								<a href="/catalogo" class="btn-cx-primary">Ver catálogo <i class="ri-arrow-right-line"></i></a>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Distribuidor -->
+			<div class="cx-navitem">
+				<a href="/distribuidor" class={`nav-link-cx ${active === 'distribuidor' ? 'active' : ''}`}>Distribuidor</a>
+				<div class="cx-mega cx-mega-sm">
+					<div class="container"><div class="cx-mega-simple">
+						<i class="ri-store-3-line"></i>
+						<div>
+							<span class="cx-mega-title">Sé distribuidor CX</span>
+							<p>Lleva nuestros productos a tu ciudad con precios mayoristas.</p>
+							<a href="/distribuidor" class="cx-mega-link">Quiero ser distribuidor <i class="ri-arrow-right-line"></i></a>
+						</div>
+					</div></div>
+				</div>
+			</div>
+
+			<!-- FAQ -->
+			<div class="cx-navitem">
+				<a href="/faq" class={`nav-link-cx ${active === 'faq' ? 'active' : ''}`}>FAQ</a>
+				<div class="cx-mega cx-mega-sm">
+					<div class="container"><div class="cx-mega-simple">
+						<i class="ri-question-answer-line"></i>
+						<div>
+							<span class="cx-mega-title">Preguntas frecuentes</span>
+							<p>Garantías, envíos, distribución y soporte de tus productos.</p>
+							<a href="/faq" class="cx-mega-link">Ver preguntas <i class="ri-arrow-right-line"></i></a>
+						</div>
+					</div></div>
+				</div>
+			</div>
+
+			<!-- Wallpapers -->
+			<div class="cx-navitem">
+				<a href="/wallpapers" class={`nav-link-cx ${active === 'wallpapers' ? 'active' : ''}`}>Wallpapers</a>
+				<div class="cx-mega cx-mega-sm">
+					<div class="container"><div class="cx-mega-simple">
+						<i class="ri-image-2-line"></i>
+						<div>
+							<span class="cx-mega-title">Wallpapers CX</span>
+							<p>Descarga fondos oficiales en alta resolución para tu setup.</p>
+							<a href="/wallpapers" class="cx-mega-link">Descargar <i class="ri-arrow-right-line"></i></a>
+						</div>
+					</div></div>
+				</div>
+			</div>
+
+			<!-- Puntos de venta -->
+			<div class="cx-navitem">
+				<a href="/puntos-de-venta" class={`nav-link-cx ${active === 'pos' ? 'active' : ''}`}>Puntos de Venta</a>
+				<div class="cx-mega cx-mega-sm">
+					<div class="container"><div class="cx-mega-simple">
+						<i class="ri-map-pin-2-line"></i>
+						<div>
+							<span class="cx-mega-title">Dónde comprar</span>
+							<p>Encuentra nuestras tiendas y distribuidores en el mapa.</p>
+							<a href="/puntos-de-venta" class="cx-mega-link">Ver mapa <i class="ri-arrow-right-line"></i></a>
+						</div>
+					</div></div>
+				</div>
+			</div>
+
+			<!-- Comunidad -->
+			<div class="cx-navitem">
+				<a href="/comunidad" class={`nav-link-cx ${active === 'comunidad' ? 'active' : ''}`}>Comunidad</a>
+				<div class="cx-mega cx-mega-sm">
+					<div class="container"><div class="cx-mega-simple">
+						<i class="ri-group-line"></i>
+						<div>
+							<span class="cx-mega-title">Comunidad CX</span>
+							<p>Síguenos en redes y comparte tu espacio de trabajo.</p>
+							<a href="/comunidad" class="cx-mega-link">Unirme <i class="ri-arrow-right-line"></i></a>
+						</div>
+					</div></div>
+				</div>
+			</div>
+		</nav>
+
+		<div class="d-flex align-items-center gap-3 ms-auto ms-lg-0">
+			<a href="/rma/new" class="btn-cx-ghost d-none d-sm-inline-flex">
+				<i class="ri-file-add-line"></i> Registrar RMA
+			</a>
+			<button class="cx-burger d-lg-none" id="cx-mobile-toggle" aria-label="Abrir menú"><i class="ri-menu-line"></i></button>
+		</div>
+	</div>
+
+	<!-- Menú móvil -->
+	<div class="cx-mobile-menu d-lg-none" id="cx-mobile-menu">
+		<a href="/catalogo" class={active === 'catalogo' ? 'active' : ''}>Catálogo</a>
+		<a href="/distribuidor" class={active === 'distribuidor' ? 'active' : ''}>Distribuidor</a>
+		<a href="/faq" class={active === 'faq' ? 'active' : ''}>FAQ</a>
+		<a href="/wallpapers" class={active === 'wallpapers' ? 'active' : ''}>Wallpapers</a>
+		<a href="/puntos-de-venta" class={active === 'pos' ? 'active' : ''}>Puntos de Venta</a>
+		<a href="/comunidad" class={active === 'comunidad' ? 'active' : ''}>Comunidad</a>
+		<div class="cx-mobile-cats">
+			<span class="cx-mobile-subtitle">Categorías</span>
+			{categories.map((c) => (
+				<a href={`/catalogo?cat=${c.slug}`} class="cx-mobile-cat">{c.name}</a>
+			))}
+		</div>
+		<a href="/rma/new" class="cx-mobile-cta"><i class="ri-file-add-line"></i> Registrar RMA</a>
+	</div>
+</header>
+
+<script is:inline>
+	(function () {
+		const btn = document.getElementById('cx-mobile-toggle');
+		const menu = document.getElementById('cx-mobile-menu');
+		if (btn && menu) {
+			btn.addEventListener('click', () => {
+				const open = menu.classList.toggle('open');
+				btn.innerHTML = open ? '<i class="ri-close-line"></i>' : '<i class="ri-menu-line"></i>';
+			});
+		}
+	})();
+</script>
+
+<style is:global>
+	/* ---- Estilos base de la navegación (autosuficiente para home y páginas públicas) ---- */
+	.utility-bar { background: #050506; border-bottom: 1px solid var(--line); font-size: 0.72rem; letter-spacing: 0.08em; }
+	.utility-bar a { color: var(--text-muted); text-decoration: none; text-transform: uppercase; font-weight: 600; transition: color 0.2s ease; }
+	.utility-bar a:hover { color: #fff; }
+	.main-nav { background: rgba(10, 10, 11, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+	.brand { font-family: var(--font-display); font-weight: 900; letter-spacing: 0.02em; font-size: 1.15rem; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.55rem; text-transform: uppercase; }
+	.nav-link-cx { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); text-decoration: none; padding: 0.4rem 0; position: relative; transition: color 0.2s ease; display: inline-flex; align-items: center; gap: 0.2rem; }
+	.nav-link-cx::after { content: ''; position: absolute; left: 0; bottom: -4px; width: 0; height: 2px; background: #fff; transition: width 0.25s ease; }
+	.nav-link-cx:hover, .nav-link-cx.active { color: #fff; }
+	.cx-navitem:hover .nav-link-cx::after, .nav-link-cx.active::after { width: 100%; }
+	.btn-cx-ghost { background: transparent; color: #fff !important; border: 1px solid var(--line-strong); font-family: var(--font-display); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.78rem; padding: 0.55rem 1.3rem; border-radius: 2px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.45rem; transition: border-color 0.2s ease, background 0.2s ease; cursor: pointer; }
+	.btn-cx-ghost:hover { border-color: #fff; background: rgba(255,255,255,0.06); }
+	.btn-cx-primary { background: #fff; color: #000 !important; border: 1px solid #fff; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.82rem; padding: 0.7rem 1.9rem; border-radius: 2px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease; cursor: pointer; }
+	.btn-cx-primary:hover { background: transparent; color: #fff !important; transform: translateY(-1px); }
+
+	.main-nav { position: relative; }
+	.cx-navitem { position: static; }
+	.nav-link-cx .cx-caret { font-size: 0.95rem; opacity: 0.7; transition: transform 0.2s ease; }
+	.cx-navitem:hover .cx-caret { transform: rotate(180deg); }
+
+	.cx-mega {
+		position: absolute;
+		left: 0; right: 0; top: 100%;
+		background: #0d0d0f;
+		border-top: 1px solid var(--line);
+		border-bottom: 1px solid var(--line);
+		box-shadow: 0 22px 40px rgba(0, 0, 0, 0.5);
+		opacity: 0; visibility: hidden; transform: translateY(8px);
+		transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+		z-index: 1040;
+		padding: 2rem 0;
+	}
+	.cx-navitem:hover .cx-mega { opacity: 1; visibility: visible; transform: translateY(0); }
+
+	.cx-mega-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 2.5rem; }
+	.cx-mega-title { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 1rem; }
+	.cx-mega-list { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 2rem; }
+	.cx-mega-list li { margin-bottom: 0.7rem; break-inside: avoid; }
+	.cx-mega-list a { color: #fff; text-decoration: none; font-family: var(--font-display); font-weight: 600; font-size: 0.98rem; transition: color 0.2s ease, padding-left 0.2s ease; display: inline-block; }
+	.cx-mega-list a:hover { color: var(--text-muted); padding-left: 4px; }
+	.cx-mega-feature { border-left: 1px solid var(--line); padding-left: 2.5rem; }
+	.cx-mega-feature p { color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 1.3rem; }
+
+	.cx-mega-sm { padding: 1.6rem 0; }
+	.cx-mega-simple { display: flex; gap: 1.1rem; align-items: flex-start; max-width: 520px; }
+	.cx-mega-simple > i { font-size: 2rem; color: #fff; line-height: 1; }
+	.cx-mega-simple p { color: var(--text-muted); font-size: 0.92rem; line-height: 1.55; margin: 0.3rem 0 0.8rem; }
+	.cx-mega-link { color: #fff; text-decoration: none; font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.04em; }
+	.cx-mega-link:hover { color: var(--text-muted); }
+
+	/* ---- Menú móvil ---- */
+	.cx-burger { background: transparent; border: 1px solid var(--line-strong); color: #fff; width: 42px; height: 42px; border-radius: 4px; font-size: 1.4rem; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+	.cx-mobile-menu { display: none; flex-direction: column; background: #0d0d0f; border-top: 1px solid var(--line); padding: 0.5rem 1rem 1.5rem; }
+	.cx-mobile-menu.open { display: flex; }
+	.cx-mobile-menu > a { color: #fff; text-decoration: none; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 1rem; padding: 0.9rem 0.25rem; border-bottom: 1px solid var(--line); }
+	.cx-mobile-menu > a.active { color: var(--text-muted); }
+	.cx-mobile-cats { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+	.cx-mobile-subtitle { display: block; color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+	.cx-mobile-cat { display: block; color: #fff; text-decoration: none; padding: 0.5rem 0.5rem; font-size: 0.95rem; }
+	.cx-mobile-cta { margin-top: 1rem; background: #fff; color: #000 !important; text-align: center; text-transform: uppercase; font-family: var(--font-display); font-weight: 700; padding: 0.8rem; border-radius: 3px; }
+	.cx-mobile-cta:hover { background: var(--text-muted); }
+</style>

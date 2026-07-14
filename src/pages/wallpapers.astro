@@ -1,0 +1,54 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { WallpaperModel } from '../lib/models/Wallpaper';
+
+await connectMongoose();
+const wallpapers = await WallpaperModel.find({ is_active: true }).sort({ order: 1 }).lean();
+---
+
+<PublicLayout title="Wallpapers | CX Ergonomic" active="wallpapers" description="Descarga fondos de pantalla oficiales de CX Ergonomic.">
+	<section class="section">
+		<div class="container">
+			<h1 class="section-heading">Wallpapers</h1>
+			<p class="section-sub">Lleva el estilo CX a tu escritorio. Descarga gratis nuestros fondos en alta resolución.</p>
+
+			{wallpapers.length === 0 ? (
+				<p class="text-center" style="color: var(--text-muted);">Pronto publicaremos nuevos wallpapers.</p>
+			) : (
+				<div class="row g-4">
+					{wallpapers.map((wp) => (
+						<div class="col-12 col-md-6 col-lg-4">
+							<div class="wp-card">
+								<div class="wp-thumb">
+									<img src={wp.image} alt={wp.title} loading="lazy" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+									<a class="wp-download btn-cx-primary" href={wp.image} download>
+										<i class="ri-download-2-line"></i> Descargar
+									</a>
+								</div>
+								<div class="wp-info">
+									<span class="wp-title">{wp.title}</span>
+									{wp.resolution && <span class="wp-res">{wp.resolution}</span>}
+								</div>
+							</div>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	</section>
+
+	<style is:global>
+		.wp-card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; transition: border-color 0.3s ease, transform 0.3s ease; }
+		.wp-card:hover { border-color: var(--line-strong); transform: translateY(-4px); }
+		.wp-thumb { position: relative; aspect-ratio: 16/10; overflow: hidden; background: #0f0f12; }
+		.wp-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+		.wp-card:hover .wp-thumb img { transform: scale(1.05); }
+		.wp-download { position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%) translateY(10px); opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; }
+		.wp-card:hover .wp-download { opacity: 1; transform: translateX(-50%) translateY(0); }
+		.wp-info { padding: 1rem 1.2rem; display: flex; justify-content: space-between; align-items: center; }
+		.wp-title { font-family: var(--font-display); font-weight: 600; color: #fff; }
+		.wp-res { font-size: 0.78rem; color: var(--text-muted); }
+		@media (max-width: 991px) { .wp-download { opacity: 1; transform: translateX(-50%); } }
+	</style>
+</PublicLayout>

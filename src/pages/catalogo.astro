@@ -1,0 +1,298 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { CategoryModel } from '../lib/models/Category';
+import { ProductModel } from '../lib/models/Product';
+import { TagModel } from '../lib/models/Tag';
+import { getSiteSettings } from '../lib/models/SiteSettings';
+import { readCookieValue, verifyAuthToken } from '../lib/auth/jwt';
+import { contrastColor, productBadges, isNewProduct } from '../lib/catalog';
+
+await connectMongoose();
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+const isAdmin = session?.role === 'admin';
+
+const settings = await getSiteSettings();
+const newDays = settings.new_badge_days ?? 30;
+
+const categories = await CategoryModel.find({ is_active: true }).sort({ name: 1 }).lean();
+const tags = await TagModel.find({ is_active: true }).sort({ order: 1 }).lean();
+const products = await ProductModel.find({ is_active: true })
+	.populate('category_id')
+	.populate({ path: 'tag_ids', strictPopulate: false })
+	.sort({ order: 1, createdAt: 1 })
+	.lean();
+
+const categoryImages: Record<string, string> = {};
+for (const p of products) {
+	const slug = (p.category_id as any)?.slug;
+	if (slug && !categoryImages[slug] && p.images?.[0]) categoryImages[slug] = p.images[0];
+}
+
+// Pre-cálculo por producto: badges (con NEW automático) y slugs de etiqueta para filtrar.
+const productViews = products.map((p) => {
+	const tagDocs = (p.tag_ids as any[]) || [];
+	const badges = productBadges(tagDocs, p.createdAt, newDays);
+	const tagSlugs = tagDocs.map((t) => t.slug);
+	const isNew = isNewProduct(p.createdAt, newDays) || tagDocs.some((t) => (t.name || '').toUpperCase() === 'NEW');
+	if (isNew && !tagSlugs.includes('new')) tagSlugs.push('new');
+	return { p, badges, tagSlugs };
+});
+---
+
+<PublicLayout title="Catálogo | CX Ergonomic" active="catalogo" description="Catálogo completo de mobiliario ergonómico y accesorios CX.">
+	<section class="cat-wrap">
+		<div class="container">
+			<nav class="cat-breadcrumb"><a href="/">Inicio</a><span class="sep">/</span><span class="current">Catálogo</span></nav>
+			<h1 class="cat-title">Catálogo</h1>
+			<p class="cat-lead">Explora toda nuestra línea de productos. Filtra por categoría o etiqueta.</p>
+
+			{isAdmin && (
+				<div class="cat-admin-bar">
+					<span><i class="ri-drag-move-2-line me-1"></i> Modo administrador: arrastra las tarjetas para reordenar el catálogo.</span>
+					<button class="btn-cx-primary cat-save-order d-none" id="save-order-btn"><i class="ri-save-line me-1"></i> Guardar orden</button>
+				</div>
+			)}
+
+			<div class="cat-tiles">
+				{categories.map((c) => (
+					<button class="cat-tile" data-cat={c.slug} type="button">
+						<img src={c.image || categoryImages[c.slug] || '/img/logo-cx-ergonomic.webp'} alt={c.name} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+						<span class="cat-tile-label">{c.name} <i class="ri-arrow-right-line"></i></span>
+					</button>
+				))}
+			</div>
+
+			<div class="row g-4 mt-2">
+				<aside class="col-12 col-lg-3">
+					<div class="cat-filter-group">
+						<span class="cat-filter-title">Categorías</span>
+						<ul class="cat-filter-list">
+							<li><button class="cat-filter active" data-cat="all" type="button">Todos los productos</button></li>
+							{categories.map((c) => (
+								<li><button class="cat-filter" data-cat={c.slug} type="button">{c.name}</button></li>
+							))}
+						</ul>
+					</div>
+
+					{tags.length > 0 && (
+						<div class="cat-filter-group">
+							<span class="cat-filter-title">Etiquetas</span>
+							<div class="cat-tag-filters">
+								{tags.map((t) => (
+									<button class="cat-tag-chip" data-tag={t.slug} type="button" style={`--chip:${t.color}; --chip-text:${contrastColor(t.color)};`}>{t.name}</button>
+								))}
+							</div>
+						</div>
+					)}
+				</aside>
+
+				<div class="col-12 col-lg-9">
+					<div class="cat-toolbar">
+						<span id="cat-count" class="cat-count">{products.length} productos</span>
+						<div class="cat-sort">
+							<label>Ordenar:</label>
+							<select id="cat-sort-select">
+								<option value="featured">Destacados</option>
+								<option value="name">Nombre (A-Z)</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="row g-3 g-md-4" id="cat-grid">
+						{productViews.map(({ p, badges, tagSlugs }) => (
+							<div class="col-6 col-lg-4 cat-col" data-cat={(p.category_id as any)?.slug || ''} data-tags={tagSlugs.join(' ')} data-name={p.name}>
+								<a class={`product-card ${isAdmin ? 'is-admin' : ''}`} href={p.slug ? `/producto/${p.slug}` : '#'} data-id={p._id.toString()} draggable={isAdmin}>
+									{isAdmin && <span class="drag-handle" title="Arrastrar para reordenar"><i class="ri-drag-move-2-line"></i></span>}
+									<div class="product-image-wrapper">
+										{badges.length > 0 && (
+											<div class="product-tags">
+												{badges.map((t) => (
+													<span class="tag-badge" style={`background:${t.color}; color:${contrastColor(t.color)};`}>{t.name}</span>
+												))}
+											</div>
+										)}
+										<img src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'} alt={p.name} class="product-image" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+									</div>
+									<div class="product-info">
+										<div class="product-sku">SKU: {p.sku}</div>
+										<h3 class="product-title">{p.name}</h3>
+										<span class="product-view-more mt-auto">Ver producto <i class="ri-arrow-right-line"></i></span>
+									</div>
+								</a>
+							</div>
+						))}
+					</div>
+
+					<div id="cat-empty" class="cat-empty d-none">No hay productos que coincidan con los filtros.</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<style is:global>
+		.cat-wrap { padding: 2.5rem 0 4.5rem; }
+		.cat-breadcrumb { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem; }
+		.cat-breadcrumb a { color: var(--text-muted); text-decoration: none; }
+		.cat-breadcrumb a:hover { color: #fff; }
+		.cat-breadcrumb .sep { margin: 0 0.5rem; opacity: 0.5; }
+		.cat-breadcrumb .current { color: #fff; }
+		.cat-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 4vw, 3rem); color: #fff; text-transform: uppercase; margin: 0 0 0.4rem; }
+		.cat-lead { color: var(--text-muted); margin-bottom: 1.5rem; }
+
+		.cat-admin-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: rgba(255,255,255,0.05); border: 1px solid var(--line); border-radius: 8px; padding: 0.8rem 1.1rem; margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.88rem; }
+
+		.cat-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2.5rem; }
+		.cat-tile { position: relative; height: 180px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer; padding: 0; transition: border-color 0.3s ease, transform 0.3s ease; }
+		.cat-tile:hover { border-color: #fff; transform: translateY(-3px); }
+		.cat-tile img { width: 100%; height: 70%; object-fit: contain; padding: 1.5rem; }
+		.cat-tile-label { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; font-size: 0.85rem; color: #fff; background: linear-gradient(0deg, rgba(0,0,0,0.85), transparent); }
+		@media (max-width: 991px) { .cat-tiles { grid-template-columns: repeat(2, 1fr); gap: 0.7rem; } .cat-tile { height: 140px; } }
+
+		.cat-filter-group { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem; margin-bottom: 1.2rem; }
+		.cat-filter-title { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.9rem; }
+		.cat-filter-list { list-style: none; padding: 0; margin: 0; }
+		.cat-filter-list li { margin-bottom: 0.3rem; }
+		.cat-filter { width: 100%; text-align: left; background: transparent; border: none; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 0.92rem; padding: 0.45rem 0.6rem; border-radius: 5px; cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+		.cat-filter:hover { background: rgba(255,255,255,0.06); }
+		.cat-filter.active { background: #fff; color: #000; }
+
+		.cat-tag-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+		.cat-tag-chip { font-family: var(--font-display); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.7rem; border-radius: 50px; border: 1px solid var(--chip); background: transparent; color: #fff; cursor: pointer; transition: all 0.2s ease; }
+		.cat-tag-chip.active { background: var(--chip); color: var(--chip-text); }
+
+		.cat-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+		.cat-count { color: var(--text-muted); font-size: 0.9rem; }
+		.cat-sort { display: flex; align-items: center; gap: 0.6rem; }
+		.cat-sort label { color: var(--text-muted); font-size: 0.85rem; }
+		.cat-sort select { background: var(--bg-elev); color: #fff; border: 1px solid var(--line); border-radius: 5px; padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+
+		.cat-empty { text-align: center; color: var(--text-muted); padding: 4rem 0; }
+
+		/* Tarjetas de producto (sin subrayado de enlace) */
+		.product-card { background: var(--bg-elev); border: 1px solid var(--line); overflow: hidden; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; cursor: pointer; height: 100%; display: flex; flex-direction: column; position: relative; border-radius: 6px; text-decoration: none !important; color: var(--text); }
+		.product-card * { text-decoration: none !important; }
+		.product-card:hover { transform: translateY(-4px); border-color: var(--line-strong); box-shadow: 0 14px 30px rgba(0,0,0,0.5); }
+		.product-card.is-admin { cursor: grab; }
+		.product-card.dragging { opacity: 0.45; outline: 2px dashed var(--line-strong); }
+		.drag-handle { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 3; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); border: 1px solid var(--line-strong); border-radius: 6px; color: #fff; }
+		.product-image-wrapper { position: relative; background: #0f0f12; padding: 1.5rem; display: flex; justify-content: center; align-items: center; height: 200px; }
+		.product-tags { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 2; display: flex; flex-wrap: wrap; gap: 0.35rem; max-width: calc(100% - 1.4rem); }
+		.product-image { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.4s ease; }
+		.product-card:hover .product-image { transform: scale(1.05); }
+		.product-info { padding: 1.2rem; flex-grow: 1; display: flex; flex-direction: column; }
+		.product-sku { font-size: 0.66rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.04em; margin-bottom: 0.4rem; text-transform: uppercase; }
+		.product-title { font-family: var(--font-display); font-weight: 600; font-size: 1rem; line-height: 1.35; color: #fff; margin-bottom: 0.9rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7rem; }
+		.product-view-more { font-family: var(--font-display); font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.35rem; transition: color 0.2s ease, gap 0.2s ease; }
+		.product-card:hover .product-view-more { color: #fff; gap: 0.6rem; }
+	</style>
+
+	<script is:inline define:vars={{ isAdmin }}>
+		(function () {
+			const grid = document.getElementById('cat-grid');
+			const cols = Array.from(grid.querySelectorAll('.cat-col'));
+			const catFilters = document.querySelectorAll('.cat-filter');
+			const tagChips = document.querySelectorAll('.cat-tag-chip');
+			const tiles = document.querySelectorAll('.cat-tile');
+			const countEl = document.getElementById('cat-count');
+			const emptyEl = document.getElementById('cat-empty');
+			const sortSelect = document.getElementById('cat-sort-select');
+
+			let activeCat = 'all';
+			const activeTags = new Set();
+
+			function apply() {
+				let visible = 0;
+				cols.forEach((col) => {
+					const colCat = col.getAttribute('data-cat') || '';
+					const colTags = (col.getAttribute('data-tags') || '').split(' ').filter(Boolean);
+					const catOk = activeCat === 'all' || colCat === activeCat;
+					const tagOk = activeTags.size === 0 || [...activeTags].some((t) => colTags.includes(t));
+					const show = catOk && tagOk;
+					col.style.display = show ? '' : 'none';
+					if (show) visible++;
+				});
+				countEl.textContent = `${visible} producto${visible === 1 ? '' : 's'}`;
+				emptyEl.classList.toggle('d-none', visible !== 0);
+			}
+			function setCat(cat) {
+				activeCat = cat;
+				catFilters.forEach((b) => b.classList.toggle('active', b.getAttribute('data-cat') === cat));
+				apply();
+			}
+			catFilters.forEach((b) => b.addEventListener('click', () => setCat(b.getAttribute('data-cat'))));
+			tiles.forEach((t) => t.addEventListener('click', () => { setCat(t.getAttribute('data-cat')); grid.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+			tagChips.forEach((chip) => chip.addEventListener('click', () => {
+				const tag = chip.getAttribute('data-tag');
+				if (activeTags.has(tag)) { activeTags.delete(tag); chip.classList.remove('active'); }
+				else { activeTags.add(tag); chip.classList.add('active'); }
+				apply();
+			}));
+
+			sortSelect.addEventListener('change', () => {
+				const mode = sortSelect.value;
+				if (mode === 'featured') { window.location.reload(); return; }
+				const sorted = [...cols].sort((a, b) => {
+					if (mode === 'name') return a.dataset.name.localeCompare(b.dataset.name);
+					return 0;
+				});
+				sorted.forEach((c) => grid.appendChild(c));
+			});
+
+			const params = new URLSearchParams(window.location.search);
+			const presetCat = params.get('cat');
+			if (presetCat) setCat(presetCat); else apply();
+
+			// ---- Reordenar por arrastre (solo admin) ----
+			if (isAdmin) {
+				const saveBtn = document.getElementById('save-order-btn');
+				let dragged = null;
+
+				grid.querySelectorAll('.product-card.is-admin').forEach((card) => {
+					card.addEventListener('dragstart', (e) => {
+						dragged = card.closest('.cat-col');
+						card.classList.add('dragging');
+						if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); }
+					});
+					card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragged = null; });
+					// Tras arrastrar, evita que el click navegue
+					let suppress = false;
+					card.addEventListener('dragstart', () => { suppress = true; });
+					card.addEventListener('dragend', () => { setTimeout(() => { suppress = false; }, 80); });
+					card.addEventListener('click', (e) => { if (suppress) e.preventDefault(); });
+				});
+
+				grid.addEventListener('dragover', (e) => {
+					e.preventDefault();
+					if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+					if (!dragged) return;
+					const items = [...grid.querySelectorAll('.cat-col')].filter((c) => c !== dragged && c.style.display !== 'none');
+					let closest = null, min = Infinity, after = false;
+					for (const it of items) {
+						const b = it.getBoundingClientRect();
+						const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+						const d = Math.hypot(e.clientX - cx, e.clientY - cy);
+						if (d < min) { min = d; closest = it; after = e.clientX > cx; }
+					}
+					if (!closest) { grid.appendChild(dragged); }
+					else if (after) closest.after(dragged); else closest.before(dragged);
+					saveBtn.classList.remove('d-none');
+				});
+
+				saveBtn.addEventListener('click', async () => {
+					const orderedIds = [...grid.querySelectorAll('.product-card')].map((c) => c.getAttribute('data-id'));
+					saveBtn.disabled = true; saveBtn.textContent = 'Guardando...';
+					try {
+						const res = await fetch('/api/catalog/products/reorder', {
+							method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderedIds }),
+						});
+						if (!res.ok) throw new Error();
+						window.location.reload();
+					} catch { alert('No se pudo guardar el orden.'); saveBtn.disabled = false; saveBtn.textContent = 'Guardar orden'; }
+				});
+			}
+		})();
+	</script>
+</PublicLayout>

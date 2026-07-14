@@ -1,0 +1,202 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { WallpaperModel } from '../../lib/models/Wallpaper';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+if (session.role !== 'admin') return Astro.redirect('/rma');
+
+await connectMongoose();
+const wallpapers = await WallpaperModel.find().sort({ order: 1 }).lean();
+---
+
+<AdminLayout
+	title="Wallpapers | CX Ergonomic"
+	active="wallpapers"
+	heading="Wallpapers"
+	subheading="Sube los fondos descargables que se muestran en /wallpapers."
+	session={session}
+>
+	<button slot="actions" class="btn btn-dark rounded-pill px-3 fw-semibold" id="new-wp-btn">
+		<i class="ri-add-line me-1"></i> Nuevo wallpaper
+	</button>
+
+	<div class="row g-4">
+		{wallpapers.length === 0 ? (
+			<div class="col-12"><div class="card shadow-sm"><div class="card-body text-center text-muted py-5">Aún no hay wallpapers.</div></div></div>
+		) : wallpapers.map((wp) => (
+			<div class="col-6 col-md-4 col-lg-3" data-id={wp._id.toString()} data-title={wp.title} data-image={wp.image} data-resolution={wp.resolution || ''} data-active={String(wp.is_active)}>
+				<div class="card shadow-sm h-100">
+					<div style="aspect-ratio: 16/10; overflow: hidden; background:#111;">
+						<img src={wp.image} alt={wp.title} class="w-100 h-100" style="object-fit: cover;" />
+					</div>
+					<div class="card-body">
+						<h6 class="fw-bold mb-1 text-truncate">{wp.title}</h6>
+						<p class="text-muted small mb-2">{wp.resolution || '—'} {!wp.is_active && '· (oculto)'}</p>
+						<div class="d-flex gap-2">
+							<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 edit-wp-btn flex-grow-1">Editar</button>
+							<button class="btn btn-sm btn-outline-danger rounded-pill px-2 delete-wp-btn"><i class="ri-delete-bin-line"></i></button>
+						</div>
+					</div>
+				</div>
+			</div>
+		))}
+	</div>
+
+	<div class="modal fade" id="wpModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content border-0 shadow" style="border-radius: 12px;">
+				<div class="modal-header bg-light">
+					<h5 class="modal-title fw-bold" id="wpModalTitle">Nuevo wallpaper</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<input type="hidden" id="wp-id" />
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Título</label>
+						<input type="text" class="form-control" id="wp-title" />
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Resolución (opcional)</label>
+						<input type="text" class="form-control" id="wp-resolution" placeholder="Ej. 1920x1080" />
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Imagen</label>
+						<div class="border border-2 border-dashed rounded-3 p-3 text-center" id="wp-drop" style="cursor:pointer;">
+							<img id="wp-preview" src="" alt="" class="img-fluid rounded mb-2 d-none" style="max-height: 140px;" />
+							<div id="wp-drop-text"><i class="ri-upload-cloud-2-line fs-3 d-block text-muted"></i><span class="small text-muted">Seleccionar imagen</span></div>
+							<input type="file" id="wp-file" class="d-none" accept="image/*" />
+						</div>
+						<div class="progress mt-2 d-none" id="wp-progress" style="height:6px;"><div class="progress-bar bg-dark" id="wp-progress-bar" style="width:0%"></div></div>
+					</div>
+					<div class="form-check">
+						<input type="checkbox" class="form-check-input" id="wp-active" checked />
+						<label class="form-check-label small" for="wp-active">Visible en la tienda</label>
+					</div>
+					<div class="alert alert-danger d-none mt-3 py-2 small" id="wp-error"></div>
+				</div>
+				<div class="modal-footer border-top-0">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="save-wp-btn">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const modalEl = document.getElementById('wpModal');
+			const elId = document.getElementById('wp-id');
+			const elTitle = document.getElementById('wp-title');
+			const elRes = document.getElementById('wp-resolution');
+			const elActive = document.getElementById('wp-active');
+			const elError = document.getElementById('wp-error');
+			const elModalTitle = document.getElementById('wpModalTitle');
+			const drop = document.getElementById('wp-drop');
+			const fileInput = document.getElementById('wp-file');
+			const preview = document.getElementById('wp-preview');
+			const dropText = document.getElementById('wp-drop-text');
+			const progress = document.getElementById('wp-progress');
+			const progressBar = document.getElementById('wp-progress-bar');
+
+			let imageUrl = '';
+
+			function uploadFile(file) {
+				return new Promise((resolve, reject) => {
+					const fd = new FormData();
+					fd.append('file', file);
+					const xhr = new XMLHttpRequest();
+					xhr.open('POST', '/api/catalog/wallpapers/upload');
+					xhr.upload.addEventListener('progress', (e) => {
+						if (e.lengthComputable) progressBar.style.width = `${Math.round((e.loaded * 100) / e.total)}%`;
+					});
+					xhr.addEventListener('load', () => {
+						if (xhr.status === 201) {
+							const r = JSON.parse(xhr.responseText);
+							resolve(r.url || r.path);
+						} else {
+							try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error('Error al subir')); }
+						}
+					});
+					xhr.addEventListener('error', () => reject(new Error('Error de red')));
+					xhr.send(fd);
+				});
+			}
+
+			drop.addEventListener('click', () => fileInput.click());
+			fileInput.addEventListener('change', async () => {
+				const file = fileInput.files && fileInput.files[0];
+				if (!file) return;
+				elError.classList.add('d-none');
+				progress.classList.remove('d-none');
+				try {
+					imageUrl = await uploadFile(file);
+					preview.src = imageUrl;
+					preview.classList.remove('d-none');
+					dropText.classList.add('d-none');
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+				finally { progress.classList.add('d-none'); progressBar.style.width = '0%'; }
+			});
+
+			function openModal(data) {
+				elError.classList.add('d-none');
+				elId.value = data ? data.id : '';
+				elTitle.value = data ? data.title : '';
+				elRes.value = data ? data.resolution : '';
+				elActive.checked = data ? data.active : true;
+				imageUrl = data ? data.image : '';
+				if (imageUrl) { preview.src = imageUrl; preview.classList.remove('d-none'); dropText.classList.add('d-none'); }
+				else { preview.classList.add('d-none'); dropText.classList.remove('d-none'); }
+				elModalTitle.textContent = data ? 'Editar wallpaper' : 'Nuevo wallpaper';
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			}
+
+			document.getElementById('new-wp-btn').addEventListener('click', () => openModal());
+
+			document.querySelectorAll('.edit-wp-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const card = btn.closest('[data-id]');
+					openModal({
+						id: card.getAttribute('data-id'),
+						title: card.getAttribute('data-title'),
+						image: card.getAttribute('data-image'),
+						resolution: card.getAttribute('data-resolution'),
+						active: card.getAttribute('data-active') === 'true',
+					});
+				});
+			});
+
+			document.getElementById('save-wp-btn').addEventListener('click', async () => {
+				elError.classList.add('d-none');
+				const id = elId.value;
+				if (!elTitle.value.trim()) { elError.textContent = 'El título es obligatorio.'; elError.classList.remove('d-none'); return; }
+				if (!imageUrl) { elError.textContent = 'Debes subir una imagen.'; elError.classList.remove('d-none'); return; }
+				const payload = { id, title: elTitle.value.trim(), resolution: elRes.value.trim(), image: imageUrl, is_active: elActive.checked };
+				try {
+					const res = await fetch(id ? '/api/catalog/wallpapers/update' : '/api/catalog/wallpapers/create', {
+						method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar');
+					window.location.reload();
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+			});
+
+			document.querySelectorAll('.delete-wp-btn').forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					const card = btn.closest('[data-id]');
+					if (!confirm('¿Eliminar este wallpaper?')) return;
+					const res = await fetch('/api/catalog/wallpapers/delete', {
+						method: 'POST', headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ id: card.getAttribute('data-id') }),
+					});
+					if (res.ok) window.location.reload(); else alert('No se pudo eliminar.');
+				});
+			});
+		})();
+	</script>
+</AdminLayout>

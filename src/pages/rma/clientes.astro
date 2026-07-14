@@ -1,0 +1,183 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { TicketModel } from '../../lib/models/Ticket';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+
+await connectMongoose();
+const tickets = await TicketModel.find().sort({ createdAt: -1 }).lean();
+
+type ClientGroup = {
+	key: string;
+	name: string;
+	ci: string;
+	phone: string;
+	count: number;
+	last: Date;
+	tickets: Array<{ ticket_number: string; status: string; issue: string; serial: string; date: string }>;
+};
+
+const statusLabel: Record<string, string> = {
+	recibida: 'Nueva',
+	'en proceso': 'En proceso',
+	finalizada: 'Finalizada',
+};
+
+const fmt = (d: Date) => new Intl.DateTimeFormat('es-VE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d));
+
+const groups = new Map<string, ClientGroup>();
+for (const t of tickets) {
+	const cd = t.customer_details || ({} as any);
+	const key = (cd.ci || cd.name || 'sin-id').toString().trim().toLowerCase();
+	if (!groups.has(key)) {
+		groups.set(key, { key, name: cd.name || 'Sin nombre', ci: cd.ci || '—', phone: cd.phone || '—', count: 0, last: t.createdAt, tickets: [] });
+	}
+	const g = groups.get(key)!;
+	g.count++;
+	if (new Date(t.createdAt) > new Date(g.last)) g.last = t.createdAt;
+	g.tickets.push({
+		ticket_number: t.ticket_number,
+		status: statusLabel[t.status] || t.status,
+		issue: t.issue_description,
+		serial: t.product_serial_number,
+		date: fmt(t.createdAt),
+	});
+}
+
+const clients = [...groups.values()].sort((a, b) => new Date(b.last).getTime() - new Date(a.last).getTime());
+const clientsData = JSON.stringify(clients);
+---
+
+<AdminLayout
+	title="Clientes | CX Ergonomic"
+	active="clientes"
+	heading="Clientes"
+	subheading="Historial de solicitudes agrupado por cliente."
+	session={session}
+>
+	<div class="card shadow-sm mb-3">
+		<div class="card-body py-3">
+			<div class="input-group">
+				<span class="input-group-text bg-white border-end-0"><i class="ri-search-line text-muted"></i></span>
+				<input type="text" class="form-control border-start-0 ps-0" id="client-search" placeholder="Buscar por nombre, identificación o teléfono..." />
+			</div>
+		</div>
+	</div>
+
+	<div class="card shadow-sm">
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead class="table-light">
+						<tr>
+							<th class="px-4 py-3">Cliente</th>
+							<th class="py-3">Identificación</th>
+							<th class="py-3">Teléfono</th>
+							<th class="py-3 text-center">Solicitudes</th>
+							<th class="py-3">Última actividad</th>
+							<th class="px-4 py-3 text-end">Acciones</th>
+						</tr>
+					</thead>
+					<tbody>
+						{clients.length === 0 ? (
+							<tr><td colspan="6" class="text-center text-muted py-5">Aún no hay clientes con solicitudes.</td></tr>
+						) : clients.map((c) => (
+							<tr class="client-row" data-key={c.key} data-search={`${c.name} ${c.ci} ${c.phone}`.toLowerCase()}>
+								<td class="px-4 py-3 fw-bold text-dark">{c.name}</td>
+								<td class="py-3 text-muted">{c.ci}</td>
+								<td class="py-3 text-muted">{c.phone}</td>
+								<td class="py-3 text-center"><span class="badge bg-dark text-white rounded-pill px-2">{c.count}</span></td>
+								<td class="py-3 text-muted">{fmt(c.last)}</td>
+								<td class="px-4 py-3 text-end">
+									<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 view-client-btn"><i class="ri-history-line me-1"></i> Ver historial</button>
+								</td>
+							</tr>
+						))}
+						<tr class="no-results d-none"><td colspan="6" class="text-center text-muted py-5">No se encontraron clientes.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal historial -->
+	<div class="modal fade" id="clientModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold" id="clientModalTitle">Historial del cliente</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4" id="client-modal-body"></div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<style>
+		.client-timeline { list-style: none; padding: 0; margin: 0; }
+		.client-timeline li { border-left: 2px solid #e7e9ee; padding: 0 0 1.1rem 1.1rem; position: relative; }
+		.client-timeline li::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #212529; }
+		.client-ticket-link { padding: 0.5rem 0.6rem; margin: -0.5rem -0.6rem 0; border-radius: 8px; transition: background 0.15s ease; }
+		.client-ticket-link:hover { background: #f3f4f6; }
+	</style>
+
+	<script set:html={`window.CX_CLIENTS = ${clientsData};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const clients = window.CX_CLIENTS || [];
+			const byKey = new Map(clients.map((c) => [c.key, c]));
+
+			function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+			function statusClass(s) {
+				if (s === 'Finalizada') return 'bg-success-subtle text-success';
+				if (s === 'En proceso') return 'bg-info-subtle text-info';
+				return 'bg-warning-subtle text-warning';
+			}
+
+			document.querySelectorAll('.view-client-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const key = btn.closest('.client-row').getAttribute('data-key');
+					const c = byKey.get(key);
+					if (!c) return;
+					document.getElementById('clientModalTitle').textContent = `${c.name} · ${c.count} solicitud${c.count === 1 ? '' : 'es'}`;
+					const items = c.tickets.map((t) => `
+						<li>
+							<a href="/rma?ticket=${encodeURIComponent(t.ticket_number)}" class="text-decoration-none text-reset d-block client-ticket-link">
+								<div class="d-flex justify-content-between align-items-center mb-1">
+									<span class="fw-bold font-monospace">${esc(t.ticket_number)} <i class="ri-external-link-line ms-1 small text-muted"></i></span>
+									<span class="badge ${statusClass(t.status)}">${esc(t.status)}</span>
+								</div>
+								<div class="text-muted small mb-1"><i class="ri-barcode-line me-1"></i>S/N: ${esc(t.serial)} · <i class="ri-calendar-event-line ms-1 me-1"></i>${esc(t.date)}</div>
+								<div class="small">${esc(t.issue)}</div>
+							</a>
+						</li>`).join('');
+					document.getElementById('client-modal-body').innerHTML = `
+						<div class="mb-3 small text-muted">
+							<i class="ri-id-card-line me-1"></i>${esc(c.ci)} &nbsp; <i class="ri-phone-line ms-2 me-1"></i>${esc(c.phone)}
+						</div>
+						<ul class="client-timeline">${items}</ul>`;
+					bs().Modal.getOrCreateInstance(document.getElementById('clientModal')).show();
+				});
+			});
+
+			// Buscador
+			const search = document.getElementById('client-search');
+			const rows = Array.from(document.querySelectorAll('.client-row'));
+			const noRes = document.querySelector('.no-results');
+			search.addEventListener('input', () => {
+				const q = search.value.toLowerCase().trim();
+				let visible = 0;
+				rows.forEach((r) => { const ok = (r.getAttribute('data-search') || '').includes(q); r.style.display = ok ? '' : 'none'; if (ok) visible++; });
+				noRes.classList.toggle('d-none', visible !== 0 || rows.length === 0);
+			});
+		})();
+	</script>
+</AdminLayout>

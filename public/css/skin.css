@@ -1,0 +1,158 @@
+/*
+ * This is the skin CSS file for the theme.
+ * It is used to override the default Bootstrap CSS.
+ * It is also used to add the skin specific CSS.
+ */
+:root,
+[data-bs-theme='light'] {
+  --bs-primary: #7533f9;
+  --bs-primary-rgb: 117, 51, 249;
+  --bs-secondary: #6c757d;
+  --bs-secondary-rgb: 108, 117, 125;
+}
+
+/* ==========================================================================
+   Premium Grayscale Modals (No Glow, Less White, Better Design)
+   ========================================================================== */
+.modal .modal-content,
+.modal-content,
+.modal-content.shadow,
+.modal-content.shadow-lg {
+  background-color: #ffffff !important;
+  border: 1px solid #dcdfe4 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 5px 15px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+}
+
+/* Cabecera: Gris oscuro carbón con texto blanco */
+.modal-header,
+.modal .modal-header {
+  background-color: #1b1b1e !important;
+  border-bottom: 1px solid #2d2d30 !important;
+  padding: 1.25rem 1.5rem !important;
+  color: #ffffff !important;
+}
+
+.modal-header .modal-title,
+.modal .modal-header .modal-title {
+  color: #ffffff !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 1.2rem !important;
+  letter-spacing: -0.01em;
+}
+
+/* Botón de cerrar blanco */
+.modal-header .btn-close,
+.modal .modal-header .btn-close {
+  filter: invert(1) grayscale(1) brightness(2) !important;
+  opacity: 0.8 !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0.5rem !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.modal-header .btn-close:hover,
+.modal .modal-header .btn-close:hover {
+  opacity: 1 !important;
+}
+
+/* Cuerpo: Gris claro para dar contraste a los inputs */
+.modal-body,
+.modal .modal-body {
+  background-color: #f8f9fa !important;
+  padding: 1.5rem !important;
+  color: #212529 !important;
+}
+
+/* Tarjetas y bordes dentro del cuerpo del modal en blanco para estructurar */
+.modal-body .bg-light,
+.modal-body .border,
+.modal-body .bg-light-subtle {
+  background-color: #ffffff !important;
+  border-color: #e2e5ea !important;
+}
+
+/* Pie de página: Gris medio */
+.modal-footer,
+.modal .modal-footer {
+  background-color: #f1f3f5 !important;
+  border-top: 1px solid #e2e5ea !important;
+  padding: 1rem 1.5rem !important;
+}
+
+/* Campos de formulario */
+.modal .form-label {
+  color: #495057 !important;
+  font-weight: 600 !important;
+  font-size: 0.82rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.4rem !important;
+}
+
+.modal .form-control,
+.modal .form-select {
+  background-color: #ffffff !important;
+  border: 1px solid #ced4da !important;
+  border-radius: 8px !important;
+  padding: 0.6rem 0.85rem !important;
+  font-size: 0.9rem !important;
+  color: #212529 !important;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+
+.modal .form-control:focus,
+.modal .form-select:focus {
+  border-color: #1b1b1e !important;
+  box-shadow: 0 0 0 3px rgba(27, 27, 30, 0.12) !important;
+  outline: 0 !important;
+}
+
+/* Botones en modales */
+.modal-footer .btn-outline-secondary {
+  border-color: #ced4da !important;
+  color: #495057 !important;
+  background-color: #ffffff !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+
+.modal-footer .btn-outline-secondary:hover {
+  background-color: #f1f3f5 !important;
+  border-color: #b0b5bc !important;
+  color: #212529 !important;
+}
+
+.modal-footer .btn-dark {
+  background-color: #1b1b1e !important;
+  border-color: #1b1b1e !important;
+  color: #ffffff !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.modal-footer .btn-dark:hover {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+/* Soporte responsive */
+@media (max-width: 576px) {
+  .modal-dialog {
+    margin: 0.5rem !important;
+    max-width: calc(100% - 1rem) !important;
+  }
+  .modal-body,
+  .modal .modal-body {
+    padding: 1rem !important;
+  }
+  .modal-header,
+  .modal-footer,
+  .modal .modal-header,
+  .modal .modal-footer {
+    padding: 0.85rem 1rem !important;
+  }
+}

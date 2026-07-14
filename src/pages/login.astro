@@ -1,0 +1,231 @@
+---
+import { getMongooseStatus } from '../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../lib/auth/jwt';
+
+const status = await getMongooseStatus();
+const connectionLabel = status.connected ? 'Base operativa' : 'Base pendiente';
+const connectionDetail = status.connected
+	? `MongoDB listo (${status.dbName})`
+	: status.error ?? 'Conexión no disponible';
+
+const mongoConnected = status.connected;
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+
+if (session) {
+	return Astro.redirect('/rma');
+}
+---
+
+<html lang="es" data-bs-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0, viewport-fit=cover" />
+		<title>Login | CX Ergonomic</title>
+		<meta
+			name="description"
+			content="Acceso al panel de CX Ergonomic para gestión de RMA y catálogo."
+		/>
+		
+		<!-- Astero Admin CSS -->
+		<link href="/css/style.css" rel="stylesheet" />
+		<link href="/css/skin.css" rel="stylesheet" />
+
+		<!-- Remix Icons -->
+		<link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet" />
+
+		<!-- Source Sans 3 and Ubuntu Mono from Google Fonts -->
+		<link
+			href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body class="bg-light">
+		<div class="wrapper">
+			<main class="content-wrapper row p-0 m-0">
+				
+				<!-- Black Header Band for White Logo -->
+				<header class="w-100 bg-dark py-3 px-4 d-flex justify-content-center align-items-center border-bottom shadow-sm">
+					<img
+						src="/img/logo-cx-ergonomic.webp"
+						alt="CX Ergonomic Logo"
+						class="img-fluid"
+						style="max-height: 38px; height: auto;"
+					/>
+				</header>
+
+				<div class="container min-vh-90 d-flex align-items-center justify-content-center py-5">
+					<div class="row w-100 justify-content-center">
+						<div class="col-12 col-lg-10 col-xl-8 position-relative">
+							
+							<h1 class="h4 text-center mb-4 text-body fw-bold">Panel Administrativo</h1>
+
+							<!-- Main Card -->
+							<div class="card p-0 mx-2 mx-md-auto shadow-sm" style="max-width: 800px; border-radius: 16px; overflow: hidden;">
+								<div class="card-body p-0">
+									<div class="row m-0">
+										
+										<!-- Left Column: Login Form -->
+										<div class="col-12 col-md-6 p-4 p-lg-5">
+											<h2 class="h5 mb-1 fw-bold">Inicia sesión</h2>
+											<p class="text-muted small mb-4">Usa tu cuenta administrativa para entrar al panel.</p>
+											
+											<!-- Login Form -->
+											<form class="text-start" id="login-form">
+												<div class="mb-3">
+													<label for="email" class="form-label">Correo electrónico</label>
+													<input
+														type="email"
+														class="form-control"
+														id="email"
+														name="email"
+														placeholder="correo@cxergonomic.com"
+														autocomplete="username"
+														required
+													/>
+												</div>
+												
+												<div class="mb-3">
+													<div class="d-flex justify-content-between align-items-center mb-1">
+														<label for="password" class="form-label mb-0">Contraseña</label>
+														<a href="/" class="text-decoration-none text-primary small">¿Olvidaste tu contraseña?</a>
+													</div>
+													<div class="password-wrapper position-relative">
+														<input
+															type="password"
+															class="form-control password-input"
+															id="password"
+															name="password"
+															placeholder="••••••••"
+															autocomplete="current-password"
+															required
+														/>
+														<button class="password-toggle btn position-absolute end-0 top-50 translate-middle-y border-0 shadow-none py-0 px-3" type="button" aria-label="Show password" style="height: 100%; z-index: 10;">
+															<i class="ri-eye-off-line text-muted"></i>
+														</button>
+													</div>
+												</div>
+												
+												<div class="mb-3 form-check">
+													<input type="checkbox" class="form-check-input" id="rememberMe" name="remember" />
+													<label class="form-check-label small" for="rememberMe">Recordarme</label>
+												</div>
+												
+												<button type="submit" class="btn btn-primary w-100 mb-3 py-2 fw-semibold btn-dark border-0">Entrar al panel</button>
+												
+												<!-- Login Status Message -->
+												<p class="form-status text-center small mb-3" id="login-status" role="status" style="min-height: 1.25rem; font-weight: 500;"></p>
+												
+												<!-- Support Information -->
+												<div class="support p-3 rounded bg-body-tertiary border text-center small mt-2">
+													<span class="text-muted d-block mb-1">Soporte interno</span>
+													<strong class="text-body">soporte@cxergonomic.com</strong>
+												</div>
+											</form>
+										</div>
+										
+										<!-- Right Column: Black Panel with White CX Logo -->
+										<div class="col-md-6 d-none d-md-block p-0 m-0 bg-dark">
+											<div class="w-100 h-100 d-flex flex-column align-items-center justify-content-center p-5 text-center">
+												<img
+													src="/img/logo-cx-ergonomic.webp"
+													class="img-fluid mb-3"
+													alt="CX Ergonomic Logo"
+													style="max-width: 220px; height: auto;"
+												/>
+												<p class="text-white-50 small px-3">Mesas elevables y brazos de monitor para trabajo inteligente.</p>
+											</div>
+										</div>
+										
+									</div>
+								</div>
+							</div>
+
+							<!-- Footer Information -->
+							<div class="mx-2 mt-4 text-center">
+								<p class="text-muted small mb-2">Acceso restringido para personal autorizado.</p>
+								<div class="d-flex justify-content-center align-items-center gap-3">
+									<a href="/rma" class="btn btn-sm btn-outline-secondary px-3 py-1.5 rounded-pill fw-semibold">Ir al módulo RMA</a>
+									
+									<!-- MongoDB Connection Signal -->
+									<span class={`badge d-inline-flex align-items-center gap-1.5 px-3 py-2 rounded-pill ${mongoConnected ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-warning-subtle text-warning border border-warning-subtle'}`} style="font-size: 0.75rem;">
+										<span class={`d-inline-block rounded-circle ${mongoConnected ? 'bg-success' : 'bg-warning'}`} style="width: 6px; height: 6px;"></span>
+										{connectionLabel}
+									</span>
+								</div>
+								
+								<p class="text-muted mt-2 mb-0" style="font-size: 0.7rem;">{connectionDetail}</p>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+
+		<script>
+			const form = document.querySelector<HTMLFormElement>('#login-form');
+			const status = document.querySelector<HTMLElement>('#login-status');
+
+			if (form && status) {
+				form.addEventListener('submit', async (event) => {
+					event.preventDefault();
+					status.textContent = 'Validando acceso...';
+					status.dataset.state = 'loading';
+
+					const formData = new FormData(form);
+					const payload = {
+						email: String(formData.get('email') ?? ''),
+						password: String(formData.get('password') ?? ''),
+					};
+
+					try {
+						const response = await fetch('/api/auth/login', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify(payload),
+						});
+
+						const data = await response.json();
+						if (!response.ok) {
+							status.textContent = data.error || 'Credenciales inválidas.';
+							status.dataset.state = 'error';
+							return;
+						}
+
+						status.textContent = `Bienvenido, ${data.user.name}.`; 
+						status.dataset.state = 'success';
+						window.location.href = '/rma';
+					} catch (error) {
+						status.textContent = 'No se pudo validar el acceso.';
+						status.dataset.state = 'error';
+					}
+				});
+			}
+		</script>
+
+		<!-- Main JS -->
+		<script src="/js/main.js" type="module" is:inline></script>
+
+		<style>
+			:root, [data-bs-theme='light'] {
+				--bs-primary: #212529 !important;
+				--bs-primary-rgb: 33, 37, 41 !important;
+				--bs-link-color: #495057 !important;
+				--bs-link-hover-color: #212529 !important;
+			}
+			.form-status[data-state='error'] {
+				color: var(--bs-danger, #dc3545) !important;
+			}
+			.form-status[data-state='success'] {
+				color: var(--bs-success, #198754) !important;
+			}
+			.form-status[data-state='loading'] {
+				color: var(--bs-info, #0dcaf0) !important;
+			}
+		</style>
+	</body>
+</html>

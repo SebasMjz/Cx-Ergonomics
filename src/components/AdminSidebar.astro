@@ -1,0 +1,117 @@
+---
+// Sidebar compartido del panel administrativo (RMA + Catálogo & Sitio).
+// Se reutiliza en /rma y en todas las páginas de gestión.
+interface Props {
+	active?: string;
+	session: { name: string; role: 'admin' | 'technical' };
+}
+
+const { active = '', session } = Astro.props;
+
+const operativo = [
+	{ key: 'dashboard', href: '/rma', icon: 'ri-dashboard-line', label: 'Dashboard RMA' },
+	{ key: 'clientes', href: '/rma/clientes', icon: 'ri-contacts-book-line', label: 'Clientes' },
+	{ key: 'usuarios', href: '/rma/usuarios', icon: 'ri-user-settings-line', label: 'Gestión de Usuarios', adminOnly: true },
+	{ key: 'new', href: '/rma/new?from=dashboard', icon: 'ri-file-add-line', label: 'Registrar Solicitud' },
+];
+
+const catalogo = [
+	{ key: 'productos', href: '/rma/productos', icon: 'ri-archive-stack-line', label: 'Productos' },
+	{ key: 'etiquetas', href: '/rma/etiquetas', icon: 'ri-price-tag-3-line', label: 'Etiquetas' },
+	{ key: 'pos', href: '/rma/puntos-de-venta', icon: 'ri-map-pin-2-line', label: 'Puntos de Venta' },
+	{ key: 'faq', href: '/rma/faq', icon: 'ri-question-answer-line', label: 'Preguntas Frecuentes' },
+	{ key: 'wallpapers', href: '/rma/wallpapers', icon: 'ri-image-2-line', label: 'Wallpapers' },
+	{ key: 'ajustes', href: '/rma/ajustes', icon: 'ri-settings-3-line', label: 'Ajustes del Sitio' },
+];
+---
+
+<!-- Overlay for mobile sidebar -->
+<div class="sidebar-overlay"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+	<div class="sidebar-header">
+		<a href="/rma" class="sidebar-brand text-decoration-none d-flex align-items-center justify-content-center">
+			<img
+				src="/img/logo-cx-ergonomic.webp"
+				alt="Logo CX"
+				class="brand-image normal-logo"
+				style="max-height: 32px;"
+			/>
+			<span class="mini-logo fw-black text-dark text-uppercase fs-4 d-none" style="font-family: 'Outfit', sans-serif; font-weight: 900; letter-spacing: -0.05em;">CX</span>
+			<span class="brand-name mb-0 opacity-80 ms-2 text-body fw-bold">CX Ergonomic</span>
+		</a>
+		<div class="toggle-mini ms-auto">
+			<button id="toggle-mini-button" class="btn btn-icon bg-body border-0" title="Minimizar barra">
+				<i class="ri-arrow-left-double-line opacity-75 fs-4"></i>
+			</button>
+		</div>
+	</div>
+
+	<div class="sidebar-content" data-simplebar>
+		<nav class="nav-tree">
+			<ul class="list-unstyled">
+				<li class="nav-section">
+					<span class="nav-section-text text-uppercase px-2">Panel Operativo</span>
+				</li>
+				{operativo.map((item) => (
+					(!item.adminOnly || session.role === 'admin') && (
+						<li class={`nav-item ${active === item.key ? 'active' : ''}`}>
+							<a class="nav-link" href={item.href}>
+								<i class={item.icon}></i>
+								<span>{item.label}</span>
+							</a>
+						</li>
+					)
+				))}
+
+				<li class="nav-section">
+					<span class="nav-section-text text-uppercase px-2">Catálogo &amp; Sitio</span>
+				</li>
+				{catalogo.map((item) => (
+					<li class={`nav-item ${active === item.key ? 'active' : ''}`}>
+						<a class="nav-link" href={item.href}>
+							<i class={item.icon}></i>
+							<span>{item.label}</span>
+						</a>
+					</li>
+				))}
+
+				<li class="nav-section">
+					<span class="nav-section-text text-uppercase px-2">Tienda</span>
+				</li>
+				<li class={`nav-item ${active === 'catalogo' ? 'active' : ''}`}>
+					<a class="nav-link" href="/">
+						<i class="ri-store-2-line"></i>
+						<span>Catálogo público</span>
+					</a>
+				</li>
+			</ul>
+		</nav>
+	</div>
+
+	<div class="sidebar-footer p-3 border-top bg-body-tertiary">
+		<div class="d-flex align-items-center gap-2 mb-3">
+			<i class="ri-user-heart-line text-dark fs-5"></i>
+			<div>
+				<small class="text-muted d-block" style="font-size: 0.7rem; text-transform: uppercase;">Usuario</small>
+				<strong class="text-body d-block" style="font-size: 0.85rem;" id="active-user-name">{session.name}</strong>
+				<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1.5 mt-0.5" style="font-size: 0.65rem;">
+					{session.role === 'admin' ? 'Administrador' : 'Técnico'}
+				</span>
+			</div>
+		</div>
+		<button type="button" class="btn btn-sm btn-outline-danger w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5" id="logout-button">
+			<i class="ri-logout-box-line"></i>
+			<span>Cerrar sesión</span>
+		</button>
+	</div>
+</aside>
+
+<script>
+	// Cierre de sesión: disponible en todas las páginas que usan este sidebar.
+	document.getElementById('logout-button')?.addEventListener('click', async () => {
+		await fetch('/api/auth/logout', { method: 'POST' });
+		window.location.href = '/login';
+	});
+</script>

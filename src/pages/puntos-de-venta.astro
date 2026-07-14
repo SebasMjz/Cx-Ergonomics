@@ -1,0 +1,95 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { PointOfSaleModel } from '../lib/models/PointOfSale';
+
+await connectMongoose();
+const points = await PointOfSaleModel.find({ is_active: true }).sort({ order: 1 }).lean();
+const pointsData = JSON.stringify(points.map((p) => ({
+	id: p._id.toString(), name: p.name, address: p.address, city: p.city || '',
+	lat: p.lat, lng: p.lng, phone: p.phone || '', hours: p.hours || '',
+})));
+---
+
+<PublicLayout title="Puntos de Venta | CX Ergonomic" active="pos" description="Encuentra dónde comprar productos CX Ergonomic cerca de ti.">
+	<Fragment slot="head">
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" is:inline></script>
+	</Fragment>
+
+	<section class="section">
+		<div class="container">
+			<h1 class="section-heading">Puntos de Venta</h1>
+			<p class="section-sub">Visítanos en nuestras tiendas y distribuidores autorizados.</p>
+
+			{points.length === 0 ? (
+				<p class="text-center" style="color: var(--text-muted);">Pronto anunciaremos nuestros puntos de venta.</p>
+			) : (
+				<div class="row g-4">
+					<div class="col-12 col-lg-5 order-2 order-lg-1">
+						<div class="pos-list">
+							{points.map((p) => (
+								<button class="pos-item" data-id={p._id.toString()} type="button">
+									<h3 class="pos-name">{p.name}</h3>
+									<p class="pos-addr"><i class="ri-map-pin-2-line"></i> {p.address}{p.city ? `, ${p.city}` : ''}</p>
+									{p.phone && <p class="pos-meta"><i class="ri-phone-line"></i> {p.phone}</p>}
+									{p.hours && <p class="pos-meta"><i class="ri-time-line"></i> {p.hours}</p>}
+								</button>
+							))}
+						</div>
+					</div>
+					<div class="col-12 col-lg-7 order-1 order-lg-2">
+						<div id="pos-map"></div>
+					</div>
+				</div>
+			)}
+		</div>
+	</section>
+
+	<style is:global>
+		#pos-map { height: 520px; border-radius: 10px; border: 1px solid var(--line); }
+		.pos-list { display: flex; flex-direction: column; gap: 0.75rem; max-height: 520px; overflow-y: auto; padding-right: 0.25rem; }
+		.pos-item { text-align: left; width: 100%; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.25rem; color: var(--text); cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease; }
+		.pos-item:hover, .pos-item.active { border-color: #fff; background: var(--bg-elev-2); }
+		.pos-name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: #fff; margin: 0 0 0.5rem; }
+		.pos-addr, .pos-meta { color: var(--text-muted); font-size: 0.88rem; margin: 0 0 0.3rem; display: flex; align-items: center; gap: 0.45rem; }
+		.leaflet-popup-content { font-family: var(--font-body); }
+	</style>
+
+	<script slot="scripts" set:html={`window.CX_POINTS = ${pointsData};`} is:inline></script>
+	<script slot="scripts" is:inline>
+		document.addEventListener('DOMContentLoaded', () => {
+			const points = window.CX_POINTS || [];
+			const mapEl = document.getElementById('pos-map');
+			if (!mapEl || !window.L || points.length === 0) return;
+			const L = window.L;
+
+			const map = L.map('pos-map');
+			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+
+			const markers = {};
+			const bounds = [];
+			points.forEach((p) => {
+				const m = L.marker([p.lat, p.lng]).addTo(map);
+				m.bindPopup(`<strong>${p.name}</strong><br>${p.address}${p.city ? ', ' + p.city : ''}${p.phone ? '<br>📞 ' + p.phone : ''}`);
+				markers[p.id] = m;
+				bounds.push([p.lat, p.lng]);
+			});
+
+			if (bounds.length === 1) map.setView(bounds[0], 14);
+			else map.fitBounds(bounds, { padding: [40, 40] });
+
+			document.querySelectorAll('.pos-item').forEach((item) => {
+				item.addEventListener('click', () => {
+					const id = item.getAttribute('data-id');
+					const p = points.find((x) => x.id === id);
+					if (!p) return;
+					map.setView([p.lat, p.lng], 15);
+					markers[id].openPopup();
+					document.querySelectorAll('.pos-item').forEach((i) => i.classList.remove('active'));
+					item.classList.add('active');
+				});
+			});
+		});
+	</script>
+</PublicLayout>

@@ -9,9 +9,34 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "server:dev": "tsx server/index.ts",
+    "server:prod": "node --import tsx/esm server/index.ts",
+    "seed": "tsx scripts/seed.ts",
+    "check": "astro check",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f mongo",
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^6.4.2"
+    "@astrojs/node": "^10.0.0",
+    "astro": "^6.4.2",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.7.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^10.0.0",
+    "validator": "^13.12.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/uuid": "^10.0.0",
+    "@types/validator": "^13.12.0",
+    "tsx": "^4.19.2",
+    "typescript": "^6.0.3"
   }
 }

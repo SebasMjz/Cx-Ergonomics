@@ -1,0 +1,215 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { PointOfSaleModel } from '../../lib/models/PointOfSale';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+if (session.role !== 'admin') return Astro.redirect('/rma');
+
+await connectMongoose();
+const points = await PointOfSaleModel.find().sort({ order: 1 }).lean();
+---
+
+<AdminLayout
+	title="Puntos de Venta | CX Ergonomic"
+	active="pos"
+	heading="Puntos de Venta"
+	subheading="Administra las tiendas mostradas en el mapa de /puntos-de-venta."
+	session={session}
+>
+	<Fragment slot="head">
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+	</Fragment>
+
+	<button slot="actions" class="btn btn-dark rounded-pill px-3 fw-semibold" id="new-pos-btn">
+		<i class="ri-add-line me-1"></i> Nuevo punto
+	</button>
+
+	<div class="card shadow-sm">
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead class="table-light">
+						<tr>
+							<th class="px-4 py-3">Nombre</th>
+							<th class="py-3">Dirección</th>
+							<th class="py-3">Coordenadas</th>
+							<th class="py-3">Estado</th>
+							<th class="px-4 py-3 text-end">Acciones</th>
+						</tr>
+					</thead>
+					<tbody>
+						{points.length === 0 ? (
+							<tr><td colspan="5" class="text-center text-muted py-5">No hay puntos de venta.</td></tr>
+						) : points.map((p) => (
+							<tr
+								data-id={p._id.toString()} data-name={p.name} data-address={p.address}
+								data-city={p.city || ''} data-phone={p.phone || ''} data-hours={p.hours || ''}
+								data-lat={String(p.lat)} data-lng={String(p.lng)} data-active={String(p.is_active)}
+							>
+								<td class="px-4 py-3 fw-semibold">{p.name}</td>
+								<td class="py-3 text-muted small">{p.address}{p.city ? `, ${p.city}` : ''}</td>
+								<td class="py-3 text-muted small font-monospace">{p.lat.toFixed(4)}, {p.lng.toFixed(4)}</td>
+								<td class="py-3">
+									{p.is_active
+										? <span class="badge bg-success-subtle text-success">Activo</span>
+										: <span class="badge bg-secondary-subtle text-secondary">Oculto</span>}
+								</td>
+								<td class="px-4 py-3 text-end">
+									<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 edit-pos-btn">Editar</button>
+									<button class="btn btn-sm btn-outline-danger rounded-pill px-3 delete-pos-btn">Eliminar</button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal fade" id="posModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg">
+			<div class="modal-content border-0 shadow" style="border-radius: 12px;">
+				<div class="modal-header bg-light">
+					<h5 class="modal-title fw-bold" id="posModalTitle">Nuevo punto de venta</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<input type="hidden" id="pos-id" />
+					<div class="row g-3">
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Nombre</label><input type="text" class="form-control" id="pos-name" /></div>
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Ciudad</label><input type="text" class="form-control" id="pos-city" /></div>
+						<div class="col-12"><label class="form-label small fw-bold text-muted">Dirección</label><input type="text" class="form-control" id="pos-address" /></div>
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Teléfono</label><input type="text" class="form-control" id="pos-phone" /></div>
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Horario</label><input type="text" class="form-control" id="pos-hours" placeholder="Lun-Vie 9:00-18:00" /></div>
+						<div class="col-6"><label class="form-label small fw-bold text-muted">Latitud</label><input type="number" step="any" class="form-control" id="pos-lat" /></div>
+						<div class="col-6"><label class="form-label small fw-bold text-muted">Longitud</label><input type="number" step="any" class="form-control" id="pos-lng" /></div>
+						<div class="col-12">
+							<label class="form-label small fw-bold text-muted">Haz clic en el mapa para fijar la ubicación</label>
+							<div id="pos-picker-map" style="height: 280px; border-radius: 8px; border: 1px solid rgba(0,0,0,.1);"></div>
+						</div>
+						<div class="col-12">
+							<div class="form-check">
+								<input type="checkbox" class="form-check-input" id="pos-active" checked />
+								<label class="form-check-label small" for="pos-active">Activo</label>
+							</div>
+						</div>
+					</div>
+					<div class="alert alert-danger d-none mt-3 py-2 small" id="pos-error"></div>
+				</div>
+				<div class="modal-footer border-top-0">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="save-pos-btn">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script slot="scripts" is:inline>
+		document.addEventListener('DOMContentLoaded', () => {
+			const L = window.L;
+			const bs = () => window.bootstrap;
+			const modalEl = document.getElementById('posModal');
+			const $ = (id) => document.getElementById(id);
+			const elError = $('pos-error');
+			const elLat = $('pos-lat'), elLng = $('pos-lng');
+			const DEFAULT = [-16.5, -68.15];
+
+			let map = null, marker = null;
+
+			function setMarker(lat, lng) {
+				if (!map) return;
+				if (marker) marker.setLatLng([lat, lng]);
+				else marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+				marker.on('dragend', () => { const ll = marker.getLatLng(); elLat.value = ll.lat.toFixed(6); elLng.value = ll.lng.toFixed(6); });
+				elLat.value = (+lat).toFixed(6); elLng.value = (+lng).toFixed(6);
+			}
+
+			function initMap(lat, lng) {
+				if (!map) {
+					map = L.map('pos-picker-map').setView([lat, lng], 13);
+					L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+					map.on('click', (e) => setMarker(e.latlng.lat, e.latlng.lng));
+				} else {
+					map.setView([lat, lng], 13);
+				}
+				setTimeout(() => map.invalidateSize(), 200);
+			}
+
+			modalEl.addEventListener('shown.bs.modal', () => {
+				const hasCoords = elLat.value && elLng.value;
+				const lat = hasCoords ? +elLat.value : DEFAULT[0];
+				const lng = hasCoords ? +elLng.value : DEFAULT[1];
+				initMap(lat, lng);
+				if (hasCoords) setMarker(lat, lng);
+				else if (marker) { map.removeLayer(marker); marker = null; }
+			});
+
+			function openModal(data) {
+				elError.classList.add('d-none');
+				$('pos-id').value = data?.id || '';
+				$('pos-name').value = data?.name || '';
+				$('pos-city').value = data?.city || '';
+				$('pos-address').value = data?.address || '';
+				$('pos-phone').value = data?.phone || '';
+				$('pos-hours').value = data?.hours || '';
+				elLat.value = data?.lat || '';
+				elLng.value = data?.lng || '';
+				$('pos-active').checked = data ? data.active : true;
+				$('posModalTitle').textContent = data ? 'Editar punto de venta' : 'Nuevo punto de venta';
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			}
+
+			$('new-pos-btn')?.addEventListener('click', () => openModal());
+
+			document.querySelectorAll('.edit-pos-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const row = btn.closest('tr');
+					openModal({
+						id: row.dataset.id, name: row.dataset.name, city: row.dataset.city,
+						address: row.dataset.address, phone: row.dataset.phone, hours: row.dataset.hours,
+						lat: row.dataset.lat, lng: row.dataset.lng, active: row.dataset.active === 'true',
+					});
+				});
+			});
+
+			$('save-pos-btn')?.addEventListener('click', async () => {
+				elError.classList.add('d-none');
+				const id = $('pos-id').value;
+				const payload = {
+					id, name: $('pos-name').value.trim(), city: $('pos-city').value.trim(),
+					address: $('pos-address').value.trim(), phone: $('pos-phone').value.trim(), hours: $('pos-hours').value.trim(),
+					lat: parseFloat(elLat.value), lng: parseFloat(elLng.value), is_active: $('pos-active').checked,
+				};
+				if (!payload.name || !payload.address || isNaN(payload.lat) || isNaN(payload.lng)) {
+					elError.textContent = 'Nombre, dirección y coordenadas son obligatorios. Haz clic en el mapa.';
+					elError.classList.remove('d-none'); return;
+				}
+				try {
+					const res = await fetch(id ? '/api/catalog/pos/update' : '/api/catalog/pos/create', {
+						method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar');
+					window.location.reload();
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+			});
+
+			document.querySelectorAll('.delete-pos-btn').forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					const row = btn.closest('tr');
+					if (!confirm('¿Eliminar este punto de venta?')) return;
+					const res = await fetch('/api/catalog/pos/delete', {
+						method: 'POST', headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ id: row.dataset.id }),
+					});
+					if (res.ok) window.location.reload(); else alert('No se pudo eliminar.');
+				});
+			});
+		});
+	</script>
+</AdminLayout>

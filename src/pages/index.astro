@@ -1,17 +1,725 @@
 ---
+import { connectMongoose } from '../lib/mongo';
+import { CategoryModel } from '../lib/models/Category';
+import { ProductModel } from '../lib/models/Product';
+import { BannerModel } from '../lib/models/Banner';
+import { TagModel } from '../lib/models/Tag';
+import { getSiteSettings } from '../lib/models/SiteSettings';
+import SiteNav from '../components/SiteNav.astro';
+import { contrastColor, productBadges, isNewProduct } from '../lib/catalog';
 
+// Connect to Database
+await connectMongoose();
+void TagModel; // asegura el registro del modelo Tag para populate
+const settings = await getSiteSettings();
+const newDays = settings.new_badge_days ?? 30;
+
+// --- Categories (auto-seed fallback if empty) ---
+let categories = await CategoryModel.find({ is_active: true }).lean();
+if (categories.length === 0) {
+	const defaultCats = [
+		{ name: 'Mesas Electricas', slug: 'mesas-electricas', description: 'Mesas ergonomicas electricas para estaciones de trabajo.' },
+		{ name: 'Brazos Monitor', slug: 'brazos-monitor', description: 'Brazos articulados para monitores simples y dobles.' },
+		{ name: 'Accesorios Ergonomicos', slug: 'accesorios-ergonomicos', description: 'Accesorios y complementos para puestos de trabajo.' },
+	];
+	await CategoryModel.insertMany(defaultCats);
+	categories = await CategoryModel.find({ is_active: true }).lean();
+}
+
+// --- Products ---
+const products = await ProductModel.find({ is_active: true })
+	.populate('category_id')
+	.populate({ path: 'tag_ids', strictPopulate: false })
+	.sort({ order: 1, createdAt: 1 })
+	.lean();
+
+// Representative image per category (first product image), used in the category grid.
+const categoryImages: Record<string, string> = {};
+for (const p of products) {
+	const slug = (p.category_id as any)?.slug;
+	if (slug && !categoryImages[slug] && p.images?.[0]) {
+		categoryImages[slug] = p.images[0];
+	}
+}
+
+// --- Destacados: productos NEW (manual) o dentro de la ventana NEW automática. ---
+function isFeatured(p: any) {
+	const tagDocs = (p.tag_ids as any[]) || [];
+	return isNewProduct(p.createdAt, newDays) || tagDocs.some((t) => (t.name || '').toUpperCase() === 'NEW');
+}
+let featured = products.filter(isFeatured);
+// Si no hay destacados, mostramos los primeros productos como vitrina.
+if (featured.length === 0) featured = products.slice(0, 8);
+const featuredViews = featured.slice(0, 8).map((p) => ({
+	p,
+	badges: productBadges((p.tag_ids as any[]) || [], p.createdAt, newDays),
+}));
+
+// --- Video Banners (Corsair-style hero). Auto-seed two muted YouTube heroes if empty. ---
+let banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
+if (banners.length === 0) {
+	await BannerModel.insertMany([
+		{
+			kicker: 'CX ERGONOMIC',
+			title: 'DISEÑADO PARA RENDIR',
+			subtitle: 'Estaciones de trabajo ergonomicas construidas para acompanarte cada hora del dia. Potencia, ajuste y precision en cada detalle.',
+			cta_text: 'VER CATALOGO',
+			cta_link: '/catalogo',
+			source: 'youtube',
+			video_id: '2ZhY7LfpkqQ',
+			order: 1,
+			is_active: true,
+		},
+		{
+			kicker: 'EXPERIENCIA CX',
+			title: 'TU ESPACIO, TU REGLA',
+			subtitle: 'Cada componente esta pensado para adaptarse a ti. Descubre la linea completa de mobiliario y accesorios inteligentes.',
+			cta_text: 'EXPLORAR',
+			cta_link: '/catalogo',
+			source: 'youtube',
+			video_id: 'BcrrVq7sTAk',
+			order: 2,
+			is_active: true,
+		},
+	]);
+	banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
+}
+
+// Build a muted/autoplay/loop YouTube embed URL (no sound, no controls).
+function youtubeEmbed(id: string) {
+	const params = new URLSearchParams({
+		autoplay: '1',
+		mute: '1',
+		loop: '1',
+		playlist: id,
+		controls: '0',
+		modestbranding: '1',
+		rel: '0',
+		playsinline: '1',
+		disablekb: '1',
+		fs: '0',
+		iv_load_policy: '3',
+		showinfo: '0',
+	});
+	return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
+}
 ---
 
-<html lang="en">
+<html lang="es" data-bs-theme="dark">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0" />
+		<title>CX Ergonomic | Componentes y Mobiliario de Alto Rendimiento</title>
+		<meta name="description" content="Explora el catalogo de mobiliario ergonomico y componentes de alto rendimiento de CX Ergonomic." />
+
+		<!-- Bootstrap base (Astero theme) -->
+		<link href="/css/style.css" rel="stylesheet" />
+		<link href="/css/skin.css" rel="stylesheet" />
+
+		<!-- Remix Icons -->
+		<link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet" />
+
+		<!-- Fonts: Source Sans 3 and Outfit -->
+		<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+
+		<!-- Bootstrap bundle (exposes window.bootstrap for the product modal) -->
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" defer></script>
+
+		<style>
+			/* ============================================================
+			   CX Ergonomic — Corsair-inspired theme
+			   Grayscale palette, WHITE as the primary accent color.
+			   ============================================================ */
+			:root {
+				--bg: #0a0a0b;
+				--bg-elev: #141416;
+				--bg-elev-2: #1b1b1e;
+				--line: rgba(255, 255, 255, 0.09);
+				--line-strong: rgba(255, 255, 255, 0.22);
+				--text: #f4f4f6;
+				--text-muted: #9a9aa1;
+				--accent: #ffffff;
+				--font-display: 'Outfit', sans-serif;
+				--font-body: 'Source Sans 3', sans-serif;
+			}
+
+			html, body { margin: 0; padding: 0; }
+			body {
+				background-color: var(--bg) !important;
+				color: var(--text) !important;
+				font-family: var(--font-body);
+				overflow-x: hidden;
+			}
+			.font-display { font-family: var(--font-display); }
+			::selection { background: #fff; color: #000; }
+
+			/* ---------- Top utility bar ---------- */
+			.utility-bar {
+				background: #050506;
+				border-bottom: 1px solid var(--line);
+				font-size: 0.72rem;
+				letter-spacing: 0.08em;
+			}
+			.utility-bar a {
+				color: var(--text-muted);
+				text-decoration: none;
+				text-transform: uppercase;
+				font-weight: 600;
+				transition: color 0.2s ease;
+			}
+			.utility-bar a:hover { color: #fff; }
+
+			/* ---------- Main navigation ---------- */
+			.main-nav {
+				background: rgba(10, 10, 11, 0.92);
+				backdrop-filter: blur(10px);
+				border-bottom: 1px solid var(--line);
+			}
+			.brand {
+				font-family: var(--font-display);
+				font-weight: 900;
+				letter-spacing: 0.02em;
+				font-size: 1.15rem;
+				color: #fff;
+				text-decoration: none;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.55rem;
+				text-transform: uppercase;
+			}
+			.nav-link-cx {
+				font-family: var(--font-display);
+				font-weight: 600;
+				font-size: 0.92rem;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				color: var(--text);
+				text-decoration: none;
+				padding: 0.4rem 0;
+				position: relative;
+				transition: color 0.2s ease;
+			}
+			.nav-link-cx::after {
+				content: '';
+				position: absolute;
+				left: 0; bottom: -4px;
+				width: 0; height: 2px;
+				background: #fff;
+				transition: width 0.25s ease;
+			}
+			.nav-link-cx:hover { color: #fff; }
+			.nav-link-cx:hover::after { width: 100%; }
+			.icon-btn {
+				background: transparent;
+				border: none;
+				color: var(--text);
+				font-size: 1.2rem;
+				line-height: 1;
+				transition: color 0.2s ease;
+			}
+			.icon-btn:hover { color: #fff; }
+
+			/* ---------- Buttons ---------- */
+			.btn-cx-primary {
+				background: #fff;
+				color: #000 !important;
+				border: 1px solid #fff;
+				font-family: var(--font-display);
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				font-size: 0.82rem;
+				padding: 0.7rem 1.9rem;
+				border-radius: 2px;
+				text-decoration: none;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+				transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+			}
+			.btn-cx-primary:hover {
+				background: transparent;
+				color: #fff !important;
+				transform: translateY(-1px);
+			}
+			.btn-cx-ghost {
+				background: transparent;
+				color: #fff !important;
+				border: 1px solid var(--line-strong);
+				font-family: var(--font-display);
+				font-weight: 600;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				font-size: 0.78rem;
+				padding: 0.5rem 1.3rem;
+				border-radius: 2px;
+				text-decoration: none;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.45rem;
+				transition: border-color 0.2s ease, background 0.2s ease;
+			}
+			.btn-cx-ghost:hover { border-color: #fff; background: rgba(255,255,255,0.06); }
+
+			/* ---------- Video hero banners ---------- */
+			.hero-banner {
+				position: relative;
+				width: 100%;
+				height: clamp(440px, 72vh, 780px);
+				overflow: hidden;
+				background: #000;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				border-bottom: 1px solid var(--line);
+			}
+			.hero-video-wrap {
+				position: absolute;
+				inset: 0;
+				overflow: hidden;
+				z-index: 1;
+			}
+			/* Cover technique: scale the 16:9 media to always fill the frame */
+			.hero-image {
+				position: absolute;
+				inset: 0;
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+			}
+			.hero-video-wrap iframe,
+			.hero-video-wrap video {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				width: 100vw;
+				height: 56.25vw;        /* 16:9 from width */
+				min-height: 100%;
+				min-width: 177.78vh;    /* 16:9 from height */
+				transform: translate(-50%, -50%);
+				border: 0;
+				pointer-events: none;
+				object-fit: cover;
+			}
+			.hero-overlay {
+				position: absolute;
+				inset: 0;
+				z-index: 2;
+				background:
+					linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 35%, rgba(0,0,0,0.55) 100%);
+			}
+			.hero-content {
+				position: relative;
+				z-index: 3;
+				max-width: 860px;
+				padding: 2rem 1.5rem;
+			}
+			.hero-kicker {
+				font-family: var(--font-display);
+				font-weight: 600;
+				font-size: 0.82rem;
+				letter-spacing: 0.32em;
+				text-transform: uppercase;
+				color: #d7d7db;
+				margin-bottom: 1.1rem;
+			}
+			.hero-title {
+				font-family: var(--font-display);
+				font-weight: 900;
+				font-size: clamp(2.4rem, 6vw, 5rem);
+				line-height: 0.98;
+				letter-spacing: -0.02em;
+				text-transform: uppercase;
+				color: #fff;
+				margin: 0 0 1.2rem;
+				text-shadow: 0 4px 30px rgba(0,0,0,0.5);
+			}
+			.hero-subtitle {
+				font-size: clamp(1rem, 1.4vw, 1.2rem);
+				color: #e3e3e7;
+				line-height: 1.6;
+				max-width: 62ch;
+				margin: 0 auto 2rem;
+			}
+			.hero-scroll {
+				position: absolute;
+				bottom: 1.5rem;
+				left: 50%;
+				transform: translateX(-50%);
+				z-index: 3;
+				color: #fff;
+				font-size: 1.5rem;
+				opacity: 0.8;
+				animation: bob 1.8s ease-in-out infinite;
+			}
+			@keyframes bob { 0%,100% { transform: translate(-50%,0); } 50% { transform: translate(-50%,8px); } }
+
+			/* ---------- Section heading ---------- */
+			.section { padding: 5rem 0; }
+			.section-heading {
+				font-family: var(--font-display);
+				font-weight: 800;
+				font-size: clamp(1.7rem, 3.5vw, 2.6rem);
+				letter-spacing: 0.02em;
+				text-transform: uppercase;
+				color: #fff;
+				text-align: center;
+				margin-bottom: 0.5rem;
+			}
+			.section-sub {
+				text-align: center;
+				color: var(--text-muted);
+				max-width: 60ch;
+				margin: 0 auto 3rem;
+			}
+
+			/* ---------- Category grid (Corsair "Shop by category") ---------- */
+			.category-card {
+				position: relative;
+				height: 300px;
+				overflow: hidden;
+				background: var(--bg-elev);
+				border: 1px solid var(--line);
+				cursor: pointer;
+				transition: border-color 0.3s ease, transform 0.3s ease;
+			}
+			.category-card:hover { border-color: var(--line-strong); transform: translateY(-4px); }
+			.category-image {
+				width: 100%;
+				height: 78%;
+				object-fit: contain;
+				padding: 2rem;
+				opacity: 0.92;
+				transition: transform 0.5s ease;
+			}
+			.category-card:hover .category-image { transform: scale(1.06); }
+			.category-label {
+				position: absolute;
+				bottom: 0; left: 0; width: 100%;
+				padding: 1.1rem 1.3rem;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				font-family: var(--font-display);
+				font-weight: 700;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+				font-size: 1.02rem;
+				color: #fff;
+				background: linear-gradient(0deg, rgba(0,0,0,0.85), transparent);
+			}
+			.category-label .slashes { color: var(--text-muted); margin-right: 0.4rem; }
+			.category-card:hover .category-label i { transform: translateX(5px); }
+			.category-label i { transition: transform 0.25s ease; }
+
+			/* ---------- Filters ---------- */
+			.filter-btn {
+				background: transparent;
+				border: 1px solid var(--line);
+				color: var(--text);
+				padding: 0.45rem 1.4rem;
+				border-radius: 50px;
+				font-size: 0.82rem;
+				font-weight: 600;
+				font-family: var(--font-display);
+				letter-spacing: 0.03em;
+				text-transform: uppercase;
+				transition: all 0.2s ease;
+			}
+			.filter-btn:hover { border-color: #fff; color: #fff; }
+			.filter-btn.active {
+				background: #fff;
+				border-color: #fff;
+				color: #000;
+			}
+
+			/* ---------- Product cards ---------- */
+			.product-card {
+				background: var(--bg-elev);
+				border: 1px solid var(--line);
+				overflow: hidden;
+				transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+				cursor: pointer;
+				height: 100%;
+				display: flex;
+				flex-direction: column;
+			}
+			.product-card:hover {
+				transform: translateY(-4px);
+				border-color: var(--line-strong);
+				box-shadow: 0 14px 30px rgba(0,0,0,0.5);
+			}
+			.product-image-wrapper {
+				position: relative;
+				background: #0f0f12;
+				padding: 1.5rem;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 220px;
+			}
+			.product-tags {
+				position: absolute;
+				top: 0.7rem;
+				left: 0.7rem;
+				z-index: 2;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.35rem;
+				max-width: calc(100% - 1.4rem);
+			}
+			.tag-badge {
+				font-family: var(--font-display);
+				font-weight: 700;
+				font-size: 0.62rem;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				padding: 0.18rem 0.5rem;
+				border-radius: 3px;
+				line-height: 1.3;
+			}
+			.product-image { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.4s ease; }
+			.product-card:hover .product-image { transform: scale(1.05); }
+			.product-info { padding: 1.4rem; flex-grow: 1; display: flex; flex-direction: column; }
+			.product-sku {
+				font-size: 0.68rem;
+				color: var(--text-muted);
+				font-weight: 600;
+				letter-spacing: 0.04em;
+				margin-bottom: 0.5rem;
+				text-transform: uppercase;
+			}
+			.product-title {
+				font-family: var(--font-display);
+				font-weight: 600;
+				font-size: 1.05rem;
+				line-height: 1.35;
+				color: #fff;
+				margin-bottom: 0.9rem;
+				display: -webkit-box;
+				-webkit-line-clamp: 2;
+				-webkit-box-orient: vertical;
+				overflow: hidden;
+				min-height: 2.85rem;
+			}
+			.product-view-more {
+				font-family: var(--font-display);
+				font-weight: 700;
+				font-size: 0.82rem;
+				text-transform: uppercase;
+				letter-spacing: 0.03em;
+				color: var(--text-muted);
+				margin-top: auto;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.35rem;
+				transition: color 0.2s ease, gap 0.2s ease;
+			}
+			.product-card:hover .product-view-more { color: #fff; gap: 0.6rem; }
+
+			/* ---------- Modal ---------- */
+			.modal-content-dark {
+				background: var(--bg-elev) !important;
+				color: var(--text) !important;
+				border: 1px solid var(--line) !important;
+				border-radius: 4px;
+			}
+			.spec-label { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
+			.spec-value { color: #fff; font-size: 0.88rem; font-weight: 700; }
+
+			/* ---------- Footer ---------- */
+			.footer {
+				background: #050506;
+				border-top: 1px solid var(--line);
+				padding: 4rem 0 2rem;
+			}
+			.footer h6 {
+				font-family: var(--font-display);
+				font-weight: 700;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				font-size: 0.82rem;
+				color: #fff;
+				margin-bottom: 1.1rem;
+			}
+			.footer a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease; }
+			.footer a:hover { color: #fff; }
+			.footer-bottom {
+				border-top: 1px solid var(--line);
+				margin-top: 3rem;
+				padding-top: 1.5rem;
+				color: var(--text-muted);
+				font-size: 0.8rem;
+			}
+		</style>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<!-- Navegación principal con mega-menú (compartida) -->
+		<SiteNav active="catalogo" />
+
+		<!-- ===================== VIDEO HERO BANNERS ===================== -->
+		{banners.map((banner, i) => (
+			<section class="hero-banner" data-banner-index={i}>
+				<div class="hero-video-wrap">
+					{banner.source === 'youtube' && banner.video_id ? (
+						<iframe
+							src={youtubeEmbed(banner.video_id)}
+							title={banner.title}
+							allow="autoplay; encrypted-media; picture-in-picture"
+							allowfullscreen
+							loading={i === 0 ? 'eager' : 'lazy'}
+						></iframe>
+					) : banner.source === 'image' ? (
+						<img src={banner.image_url} alt={banner.title} class="hero-image" loading={i === 0 ? 'eager' : 'lazy'} />
+					) : (
+						<video
+							src={banner.video_url}
+							poster={banner.poster}
+							autoplay
+							muted
+							loop
+							playsinline
+						></video>
+					)}
+				</div>
+				<div class="hero-overlay"></div>
+				<div class="hero-content">
+					{banner.kicker && <div class="hero-kicker">{banner.kicker}</div>}
+					<h1 class="hero-title">{banner.title}</h1>
+					{banner.subtitle && <p class="hero-subtitle">{banner.subtitle}</p>}
+					{banner.cta_text && banner.cta_link && (
+						<a href={banner.cta_link} class="btn-cx-primary">
+							{banner.cta_text} <i class="ri-arrow-right-line"></i>
+						</a>
+					)}
+				</div>
+				{i === 0 && (
+					<a href="#categories-section" class="hero-scroll" aria-label="Desplazar"><i class="ri-arrow-down-line"></i></a>
+				)}
+			</section>
+		))}
+
+		<!-- ===================== SHOP BY CATEGORY ===================== -->
+		<section class="section" id="categories-section">
+			<div class="container">
+				<h2 class="section-heading">Compra por Categoria</h2>
+				<p class="section-sub">Explora nuestra linea completa de mobiliario ergonomico y accesorios inteligentes.</p>
+				<div class="row g-3 g-md-4">
+					{categories.map((cat) => (
+						<div class="col-6 col-lg-4">
+							<div class="category-card" data-slug={cat.slug}>
+								<img
+									src={cat.image || categoryImages[cat.slug] || '/img/logo-cx-ergonomic.webp'}
+									alt={cat.name}
+									class="category-image"
+									onerror="this.src='/img/logo-cx-ergonomic.webp'"
+								/>
+								<div class="category-label">
+									<span><span class="slashes">//</span>{cat.name}</span>
+									<i class="ri-arrow-right-line"></i>
+								</div>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+		</section>
+
+		<!-- ===================== DESTACADOS ===================== -->
+		<section class="section pt-0" id="catalog-section">
+			<div class="container">
+				<div class="text-center mb-5">
+					<h2 class="section-heading">Destacados</h2>
+					<p class="section-sub">Lo más nuevo de CX. Mira todo en el catálogo completo.</p>
+				</div>
+
+				<div class="row g-4">
+					{featuredViews.map(({ p, badges }) => (
+						<div class="col-6 col-md-6 col-lg-4 col-xl-3">
+							<a class="product-card text-decoration-none" href={p.slug ? `/producto/${p.slug}` : '#'}>
+								<div class="product-image-wrapper">
+									{badges.length > 0 && (
+										<div class="product-tags">
+											{badges.map((t) => (
+												<span class="tag-badge" style={`background:${t.color}; color:${contrastColor(t.color)};`}>{t.name}</span>
+											))}
+										</div>
+									)}
+									<img
+										src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'}
+										alt={p.name}
+										class="product-image"
+										onerror="this.src='/img/logo-cx-ergonomic.webp'"
+									/>
+								</div>
+								<div class="product-info">
+									<div class="product-sku">SKU: {p.sku}</div>
+									<h3 class="product-title">{p.name}</h3>
+									<span class="product-view-more mt-auto">Ver producto <i class="ri-arrow-right-line"></i></span>
+								</div>
+							</a>
+						</div>
+					))}
+				</div>
+
+				<div class="text-center mt-5">
+					<a href="/catalogo" class="btn-cx-primary">Ver catálogo completo <i class="ri-arrow-right-line"></i></a>
+				</div>
+			</div>
+		</section>
+
+		<!-- ===================== FOOTER ===================== -->
+		<footer class="footer">
+			<div class="container">
+				<div class="row g-4">
+					<div class="col-12 col-lg-4">
+						<div class="brand mb-3">
+							<img src="/img/logo-cx-ergonomic.webp" alt="CX Ergonomic" style="max-height: 26px;" onerror="this.style.display='none'" />
+							
+						</div>
+						<p style="color: var(--text-muted); max-width: 38ch; font-size: 0.92rem;">
+							Mobiliario ergonomico y componentes de alto rendimiento para tu espacio de trabajo.
+						</p>
+					</div>
+					<div class="col-6 col-md-4 col-lg-2 offset-lg-1">
+						<h6>Tienda</h6>
+						<ul class="list-unstyled d-flex flex-column gap-2 mb-0">
+							<li><a href="#catalog-section">Productos</a></li>
+							<li><a href="#categories-section">Categorias</a></li>
+						</ul>
+					</div>
+					<div class="col-6 col-md-4 col-lg-2">
+						<h6>Soporte</h6>
+						<ul class="list-unstyled d-flex flex-column gap-2 mb-0">
+							<li><a href="/rma/new">Registrar RMA</a></li>
+							<li><a href="/rma/new">Garantia</a></li>
+						</ul>
+					</div>
+					<div class="col-6 col-md-4 col-lg-2">
+						<h6>CX</h6>
+						<ul class="list-unstyled d-flex flex-column gap-2 mb-0">
+							<li><a href="/login">Acceso Personal</a></li>
+						</ul>
+					</div>
+				</div>
+				<div class="footer-bottom d-flex flex-wrap justify-content-between gap-2">
+					<span>&copy; 2026 CX Ergonomic Importations S.R.L. Todos los derechos reservados.</span>
+					<span>Cochabamba, Bolivia</span>
+				</div>
+			</div>
+		</footer>
+
+		<script>
+			// Las tarjetas de categoría llevan al catálogo filtrado por esa categoría.
+			document.querySelectorAll('.category-card').forEach((card) => {
+				card.addEventListener('click', () => {
+					const slug = card.getAttribute('data-slug');
+					window.location.href = slug ? `/catalogo?cat=${slug}` : '/catalogo';
+				});
+			});
+		</script>
 	</body>
 </html>

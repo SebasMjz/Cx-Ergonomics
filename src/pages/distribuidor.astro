@@ -1,0 +1,104 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { getSiteSettings } from '../lib/models/SiteSettings';
+
+await connectMongoose();
+const settings = await getSiteSettings();
+const whatsapp = settings.whatsapp_number || '';
+const email = settings.contact_email || '';
+const intro = settings.distributor_intro || 'Lleva los productos CX a tu ciudad. Completa el formulario y nuestro equipo comercial te contactará con precios mayoristas y condiciones.';
+---
+
+<PublicLayout title="Quiero ser Distribuidor | CX Ergonomic" active="distribuidor" description="Conviértete en distribuidor autorizado de CX Ergonomic.">
+	<section class="section">
+		<div class="container" style="max-width: 720px;">
+			<h1 class="section-heading">Quiero ser Distribuidor</h1>
+			<p class="section-sub">{intro}</p>
+
+			<div class="dist-card">
+				<form id="dist-form">
+					<div class="row g-3">
+						<div class="col-12 col-md-6">
+							<label class="dist-label">Empresa / Negocio</label>
+							<input type="text" class="form-control dist-input" id="d-company" required />
+						</div>
+						<div class="col-12 col-md-6">
+							<label class="dist-label">Nombre de contacto</label>
+							<input type="text" class="form-control dist-input" id="d-name" required />
+						</div>
+						<div class="col-12 col-md-6">
+							<label class="dist-label">Correo electrónico</label>
+							<input type="email" class="form-control dist-input" id="d-email" required />
+						</div>
+						<div class="col-12 col-md-6">
+							<label class="dist-label">Teléfono</label>
+							<input type="tel" class="form-control dist-input" id="d-phone" required />
+						</div>
+						<div class="col-12">
+							<label class="dist-label">Ciudad / Región</label>
+							<input type="text" class="form-control dist-input" id="d-city" required />
+						</div>
+						<div class="col-12">
+							<label class="dist-label">Cuéntanos sobre tu negocio</label>
+							<textarea class="form-control dist-input" id="d-message" rows="4" placeholder="Tipo de negocio, productos de interés, volumen estimado..."></textarea>
+						</div>
+					</div>
+
+					<div class="d-flex flex-wrap gap-2 mt-4">
+						{whatsapp && <button type="submit" class="btn-cx-primary" data-channel="whatsapp"><i class="ri-whatsapp-line"></i> Enviar por WhatsApp</button>}
+						{email && <button type="submit" class="btn-cx-ghost" data-channel="email"><i class="ri-mail-line"></i> Enviar por correo</button>}
+						{!whatsapp && !email && <p class="mb-0" style="color: var(--text-muted);">Canal de contacto no configurado todavía.</p>}
+					</div>
+					<p class="dist-note">Al enviar, se abrirá WhatsApp o tu cliente de correo con el mensaje ya redactado.</p>
+				</form>
+			</div>
+		</div>
+	</section>
+
+	<style is:global>
+		.dist-card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px; padding: 2.2rem; }
+		.dist-label { display: block; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+		.dist-input { background: var(--bg-elev-2) !important; border: 1px solid var(--line) !important; color: #fff !important; border-radius: 4px; }
+		.dist-input:focus { border-color: #fff !important; box-shadow: none !important; background: var(--bg-elev-2) !important; color: #fff !important; }
+		.dist-input::placeholder { color: #6b6b72; }
+		.dist-note { color: var(--text-muted); font-size: 0.82rem; margin-top: 1rem; margin-bottom: 0; }
+	</style>
+
+	<script set:html={`window.CX_CONTACT = ${JSON.stringify({ whatsapp, email })};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const contact = window.CX_CONTACT || { whatsapp: '', email: '' };
+			const form = document.getElementById('dist-form');
+			const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+			function buildMessage() {
+				return [
+					'Hola CX Ergonomic, quiero ser distribuidor.',
+					`Empresa: ${val('d-company')}`,
+					`Contacto: ${val('d-name')}`,
+					`Correo: ${val('d-email')}`,
+					`Teléfono: ${val('d-phone')}`,
+					`Ciudad: ${val('d-city')}`,
+					`Mensaje: ${val('d-message')}`,
+				].join('\n');
+			}
+
+			let channel = 'whatsapp';
+			form.querySelectorAll('button[type="submit"]').forEach((b) => {
+				b.addEventListener('click', () => { channel = b.getAttribute('data-channel') || 'whatsapp'; });
+			});
+
+			form.addEventListener('submit', (e) => {
+				e.preventDefault();
+				if (!form.reportValidity()) return;
+				const message = buildMessage();
+				if (channel === 'whatsapp' && contact.whatsapp) {
+					window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
+				} else if (contact.email) {
+					window.location.href = `mailto:${contact.email}?subject=${encodeURIComponent('Solicitud de distribuidor')}&body=${encodeURIComponent(message)}`;
+				}
+			});
+		})();
+	</script>
+</PublicLayout>

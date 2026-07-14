@@ -1,0 +1,372 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { getSiteSettings } from '../../lib/models/SiteSettings';
+import { BannerModel } from '../../lib/models/Banner';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+if (session.role !== 'admin') return Astro.redirect('/rma');
+
+await connectMongoose();
+const settings = await getSiteSettings();
+const s = JSON.parse(JSON.stringify(settings));
+const banners = await BannerModel.find().sort({ order: 1 }).lean();
+const bannersData = JSON.stringify(banners.map((b) => ({
+	id: b._id.toString(), kicker: b.kicker || '', title: b.title, subtitle: b.subtitle || '',
+	cta_text: b.cta_text || '', cta_link: b.cta_link || '', source: b.source,
+	video_id: b.video_id || '', video_url: b.video_url || '', image_url: b.image_url || '', poster: b.poster || '',
+	is_active: b.is_active,
+})));
+
+const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (archivo)', image: 'Imagen' };
+---
+
+<AdminLayout
+	title="Ajustes del Sitio | CX Ergonomic"
+	active="ajustes"
+	heading="Ajustes del Sitio"
+	subheading="Contacto, redes, banners del inicio y reglas del catálogo."
+	session={session}
+>
+	<div class="row g-4">
+		<div class="col-12 col-lg-6">
+			<div class="card shadow-sm h-100">
+				<div class="card-header bg-transparent py-3 fw-bold"><i class="ri-customer-service-2-line me-2"></i>Contacto</div>
+				<div class="card-body">
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">WhatsApp Distribuidor (solo números, con código de país)</label>
+						<input type="text" class="form-control" id="set-whatsapp" value={s.whatsapp_number || ''} placeholder="59170000000" />
+						<div class="form-text">Se usa en el formulario "Quiero ser distribuidor".</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">WhatsApp Pedidos / Productos (solo números, con código de país)</label>
+						<input type="text" class="form-control" id="set-whatsapp-products" value={s.whatsapp_number_products || ''} placeholder="59170000000" />
+						<div class="form-text">Se usa en los botones de contacto de la página pública de cada producto.</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Correo de contacto</label>
+						<input type="email" class="form-control" id="set-email" value={s.contact_email || ''} placeholder="ventas@cxergonomic.com" />
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Texto intro — Distribuidor</label>
+						<textarea class="form-control" id="set-dist-intro" rows="2">{s.distributor_intro || ''}</textarea>
+					</div>
+					<div class="mb-0">
+						<label class="form-label small fw-bold text-muted">Texto intro — Comunidad</label>
+						<textarea class="form-control" id="set-comm-intro" rows="2">{s.community_intro || ''}</textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-12 col-lg-6">
+			<div class="card shadow-sm mb-4">
+				<div class="card-header bg-transparent py-3 fw-bold"><i class="ri-group-line me-2"></i>Redes sociales (Comunidad)</div>
+				<div class="card-body">
+					<div class="mb-3"><label class="form-label small fw-bold text-muted"><i class="ri-instagram-line me-1"></i>Instagram</label><input type="url" class="form-control" id="set-instagram" value={s.socials?.instagram || ''} placeholder="https://instagram.com/..." /></div>
+					<div class="mb-3"><label class="form-label small fw-bold text-muted"><i class="ri-tiktok-line me-1"></i>TikTok</label><input type="url" class="form-control" id="set-tiktok" value={s.socials?.tiktok || ''} placeholder="https://tiktok.com/@..." /></div>
+					<div class="mb-3"><label class="form-label small fw-bold text-muted"><i class="ri-youtube-line me-1"></i>YouTube</label><input type="url" class="form-control" id="set-youtube" value={s.socials?.youtube || ''} placeholder="https://youtube.com/@..." /></div>
+					<div class="mb-3"><label class="form-label small fw-bold text-muted"><i class="ri-facebook-circle-line me-1"></i>Facebook</label><input type="url" class="form-control" id="set-facebook" value={s.socials?.facebook || ''} placeholder="https://facebook.com/..." /></div>
+					<div class="mb-0"><label class="form-label small fw-bold text-muted"><i class="ri-discord-line me-1"></i>Discord</label><input type="url" class="form-control" id="set-discord" value={s.socials?.discord || ''} placeholder="https://discord.gg/..." /></div>
+				</div>
+			</div>
+
+			<div class="card shadow-sm">
+				<div class="card-header bg-transparent py-3 fw-bold"><i class="ri-price-tag-3-line me-2"></i>Catálogo</div>
+				<div class="card-body">
+					<label class="form-label small fw-bold text-muted">Duración de la etiqueta NEW automática (días)</label>
+					<input type="number" min="0" class="form-control" id="set-new-days" value={s.new_badge_days ?? 30} style="max-width: 160px;" />
+					<div class="form-text">Los productos nuevos muestran la etiqueta NEW automáticamente durante este número de días. 0 lo desactiva.</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- RMA / WhatsApp -->
+		<div class="col-12">
+			<div class="card shadow-sm">
+				<div class="card-header bg-transparent py-3 fw-bold"><i class="ri-whatsapp-line me-2"></i>RMA — Seguimiento y mensajes de WhatsApp</div>
+				<div class="card-body">
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Dirección del seguimiento (opcional)</label>
+						<input type="text" class="form-control" id="set-rma-track-url" value={s.rma_tracking_url || ''} placeholder="Se usa automáticamente la página de tu sitio" />
+						<div class="form-text">La página de seguimiento <strong>ya es parte del sistema</strong>. Déjalo vacío y usaremos automáticamente la dirección de tu propio sitio. Solo complétalo si quieres enviar a los clientes a un dominio distinto.</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Políticas de cobertura de garantía (se muestran al cliente antes del formulario)</label>
+						<textarea class="form-control font-monospace" id="set-rma-policy" rows="10" style="font-size: 0.82rem;">{s.rma_warranty_policy || ''}</textarea>
+						<div class="form-text">El cliente debe leerlas y aceptarlas antes de poder registrar una solicitud de RMA.</div>
+					</div>
+					<div class="alert alert-light border small mb-3">
+						<div class="fw-semibold mb-1"><i class="ri-magic-line me-1"></i>¿Cómo escribir los mensajes?</div>
+						Escribe el mensaje normal y, donde quieras que aparezca un dato del cliente, toca uno de los botones de abajo. El sistema lo reemplaza solo al enviar el WhatsApp:
+						<ul class="mb-0 mt-1 ps-3">
+							<li><strong>Nombre del cliente</strong> → el nombre de quien hizo la solicitud.</li>
+							<li><strong>N.º de ticket</strong> → el código del caso (ej. RMA-2026-1001).</li>
+							<li><strong>Enlace de seguimiento</strong> → la página donde el cliente rastrea su pedido.</li>
+						</ul>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Mensaje — columna "Nuevas solicitudes"</label>
+						<textarea class="form-control" id="set-rma-wa-recibida" rows="2">{s.rma_wa_msg_recibida || ''}</textarea>
+						<div class="d-flex flex-wrap gap-1 mt-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-recibida" data-token="{cliente}"><i class="ri-user-line me-1"></i>Nombre del cliente</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-recibida" data-token="{ticket}"><i class="ri-hashtag me-1"></i>N.º de ticket</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-recibida" data-token="{url}"><i class="ri-link me-1"></i>Enlace de seguimiento</button>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Mensaje — columna "En proceso"</label>
+						<textarea class="form-control" id="set-rma-wa-proceso" rows="2">{s.rma_wa_msg_proceso || ''}</textarea>
+						<div class="d-flex flex-wrap gap-1 mt-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-proceso" data-token="{cliente}"><i class="ri-user-line me-1"></i>Nombre del cliente</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-proceso" data-token="{ticket}"><i class="ri-hashtag me-1"></i>N.º de ticket</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-proceso" data-token="{url}"><i class="ri-link me-1"></i>Enlace de seguimiento</button>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Mensaje — columna "Finalizadas"</label>
+						<textarea class="form-control" id="set-rma-wa-finalizada" rows="2">{s.rma_wa_msg_finalizada || ''}</textarea>
+						<div class="d-flex flex-wrap gap-1 mt-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-finalizada" data-token="{cliente}"><i class="ri-user-line me-1"></i>Nombre del cliente</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-finalizada" data-token="{ticket}"><i class="ri-hashtag me-1"></i>N.º de ticket</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-finalizada" data-token="{url}"><i class="ri-link me-1"></i>Enlace de seguimiento</button>
+						</div>
+					</div>
+					<div class="mb-0">
+						<label class="form-label small fw-bold text-muted">Mensaje — Rechazo (incluye el motivo)</label>
+						<textarea class="form-control" id="set-rma-wa-rechazo" rows="2">{s.rma_wa_msg_rechazo || ''}</textarea>
+						<div class="d-flex flex-wrap gap-1 mt-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-rechazo" data-token="{cliente}"><i class="ri-user-line me-1"></i>Nombre del cliente</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-rechazo" data-token="{ticket}"><i class="ri-hashtag me-1"></i>N.º de ticket</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-rechazo" data-token="{url}"><i class="ri-link me-1"></i>Enlace de seguimiento</button>
+							<button type="button" class="btn btn-sm btn-outline-warning rounded-pill var-btn" data-target="set-rma-wa-rechazo" data-token="{motivo}"><i class="ri-error-warning-line me-1"></i>Motivo del rechazo</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-12">
+			<button class="btn btn-dark rounded-pill px-4 fw-semibold" id="save-settings-btn"><i class="ri-save-line me-1"></i> Guardar configuración</button>
+			<span class="ms-3 small" id="settings-status"></span>
+		</div>
+
+		<!-- Banners del inicio -->
+		<div class="col-12">
+			<div class="card shadow-sm">
+				<div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
+					<span class="fw-bold"><i class="ri-slideshow-2-line me-2"></i>Banners del inicio (video / imagen)</span>
+					<button class="btn btn-sm btn-dark rounded-pill px-3" id="new-banner-btn"><i class="ri-add-line me-1"></i> Nuevo banner</button>
+				</div>
+				<div class="card-body p-0">
+					<div class="table-responsive">
+						<table class="table table-hover align-middle mb-0">
+							<thead class="table-light">
+								<tr><th class="px-4 py-3">Título</th><th class="py-3">Tipo</th><th class="py-3">Fuente</th><th class="py-3">Estado</th><th class="px-4 py-3 text-end">Acciones</th></tr>
+							</thead>
+							<tbody>
+								{banners.length === 0 ? (
+									<tr><td colspan="5" class="text-center text-muted py-4">No hay banners. El inicio usará los predeterminados.</td></tr>
+								) : banners.map((b) => (
+									<tr data-id={b._id.toString()}>
+										<td class="px-4 py-3 fw-semibold">{b.title}</td>
+										<td class="py-3"><span class="badge bg-secondary-subtle text-secondary">{sourceLabel[b.source] || b.source}</span></td>
+										<td class="py-3 text-muted small text-truncate" style="max-width:280px;">{b.source === 'youtube' ? b.video_id : b.source === 'file' ? b.video_url : b.image_url}</td>
+										<td class="py-3">{b.is_active ? <span class="badge bg-success-subtle text-success">Activo</span> : <span class="badge bg-secondary-subtle text-secondary">Oculto</span>}</td>
+										<td class="px-4 py-3 text-end">
+											<button class="btn btn-sm btn-outline-primary rounded-circle action-btn edit-banner-btn" title="Editar"><i class="ri-pencil-line"></i></button>
+											<button class="btn btn-sm btn-outline-danger rounded-circle action-btn delete-banner-btn" title="Eliminar"><i class="ri-delete-bin-line"></i></button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal banner -->
+	<div class="modal fade" id="bannerModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold" id="bannerModalTitle">Nuevo banner</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<input type="hidden" id="bn-id" />
+					<div class="row g-3">
+						<div class="col-12 col-md-6">
+							<label class="form-label small fw-bold text-muted">Tipo de fuente</label>
+							<select class="form-select" id="bn-source">
+								<option value="youtube">YouTube</option>
+								<option value="file">Video (archivo / URL .mp4)</option>
+								<option value="image">Imagen</option>
+							</select>
+						</div>
+						<div class="col-12 col-md-6 bn-field bn-youtube">
+							<label class="form-label small fw-bold text-muted">ID del video de YouTube</label>
+							<input type="text" class="form-control" id="bn-video-id" placeholder="Ej. 2ZhY7LfpkqQ" />
+						</div>
+						<div class="col-12 bn-field bn-file">
+							<label class="form-label small fw-bold text-muted">URL del video (.mp4/.webm)</label>
+							<input type="url" class="form-control" id="bn-video-url" placeholder="https://.../video.mp4" />
+						</div>
+						<div class="col-12 bn-field bn-image">
+							<label class="form-label small fw-bold text-muted">URL de la imagen</label>
+							<input type="url" class="form-control" id="bn-image-url" placeholder="https://.../banner.jpg" />
+						</div>
+						<div class="col-12 bn-field bn-file">
+							<label class="form-label small fw-bold text-muted">Poster (imagen mientras carga el video, opcional)</label>
+							<input type="url" class="form-control" id="bn-poster" placeholder="https://.../poster.jpg" />
+						</div>
+						<div class="col-12 col-md-4"><label class="form-label small fw-bold text-muted">Kicker (texto pequeño)</label><input type="text" class="form-control" id="bn-kicker" /></div>
+						<div class="col-12 col-md-8"><label class="form-label small fw-bold text-muted">Título</label><input type="text" class="form-control" id="bn-title" /></div>
+						<div class="col-12"><label class="form-label small fw-bold text-muted">Subtítulo</label><textarea class="form-control" id="bn-subtitle" rows="2"></textarea></div>
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Texto del botón (CTA)</label><input type="text" class="form-control" id="bn-cta-text" placeholder="VER CATÁLOGO" /></div>
+						<div class="col-12 col-md-6"><label class="form-label small fw-bold text-muted">Enlace del botón</label><input type="text" class="form-control" id="bn-cta-link" placeholder="/catalogo" /></div>
+						<div class="col-12"><div class="form-check"><input type="checkbox" class="form-check-input" id="bn-active" checked /><label class="form-check-label small" for="bn-active">Activo</label></div></div>
+					</div>
+					<div class="alert alert-danger d-none mt-3 py-2 small" id="bn-error"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="save-banner-btn">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<style>
+		.action-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+	</style>
+
+	<script set:html={`window.CX_BANNERS = ${bannersData};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const $ = (id) => document.getElementById(id);
+
+			// ---- Botones para insertar variables en los mensajes ----
+			document.querySelectorAll('.var-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const target = $(btn.getAttribute('data-target'));
+					const token = btn.getAttribute('data-token') || '';
+					if (!target) return;
+					const start = target.selectionStart ?? target.value.length;
+					const end = target.selectionEnd ?? target.value.length;
+					target.value = target.value.slice(0, start) + token + target.value.slice(end);
+					// Recoloca el cursor justo después del texto insertado
+					const pos = start + token.length;
+					target.focus();
+					target.setSelectionRange(pos, pos);
+				});
+			});
+
+			// ---- Guardar configuración general ----
+			$('save-settings-btn').addEventListener('click', async () => {
+				const status = $('settings-status');
+				status.textContent = 'Guardando...';
+				status.className = 'ms-3 small text-muted';
+				const payload = {
+					whatsapp_number: $('set-whatsapp').value,
+					whatsapp_number_products: $('set-whatsapp-products').value,
+					contact_email: $('set-email').value,
+					distributor_intro: $('set-dist-intro').value,
+					community_intro: $('set-comm-intro').value,
+					new_badge_days: $('set-new-days').value,
+					rma_tracking_url: $('set-rma-track-url').value,
+					rma_warranty_policy: $('set-rma-policy').value,
+					rma_wa_msg_recibida: $('set-rma-wa-recibida').value,
+					rma_wa_msg_proceso: $('set-rma-wa-proceso').value,
+					rma_wa_msg_finalizada: $('set-rma-wa-finalizada').value,
+					rma_wa_msg_rechazo: $('set-rma-wa-rechazo').value,
+					socials: {
+						instagram: $('set-instagram').value, tiktok: $('set-tiktok').value, youtube: $('set-youtube').value,
+						facebook: $('set-facebook').value, discord: $('set-discord').value,
+					},
+				};
+				try {
+					const res = await fetch('/api/settings/update', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error');
+					status.textContent = '✓ Guardado'; status.className = 'ms-3 small text-success fw-bold';
+				} catch (err) { status.textContent = err.message; status.className = 'ms-3 small text-danger fw-bold'; }
+			});
+
+			// ---- Banners ----
+			const banners = window.CX_BANNERS || [];
+			const bannersById = new Map(banners.map((b) => [b.id, b]));
+			const modalEl = $('bannerModal');
+			const bnError = $('bn-error');
+
+			function syncFields() {
+				const src = $('bn-source').value;
+				document.querySelectorAll('.bn-youtube').forEach((e) => e.classList.toggle('d-none', src !== 'youtube'));
+				document.querySelectorAll('.bn-file').forEach((e) => e.classList.toggle('d-none', src !== 'file'));
+				document.querySelectorAll('.bn-image').forEach((e) => e.classList.toggle('d-none', src !== 'image'));
+			}
+			$('bn-source').addEventListener('change', syncFields);
+
+			function openBanner(b) {
+				bnError.classList.add('d-none');
+				$('bn-id').value = b ? b.id : '';
+				$('bn-source').value = b ? b.source : 'youtube';
+				$('bn-video-id').value = b ? b.video_id : '';
+				$('bn-video-url').value = b ? b.video_url : '';
+				$('bn-image-url').value = b ? b.image_url : '';
+				$('bn-poster').value = b ? b.poster : '';
+				$('bn-kicker').value = b ? b.kicker : '';
+				$('bn-title').value = b ? b.title : '';
+				$('bn-subtitle').value = b ? b.subtitle : '';
+				$('bn-cta-text').value = b ? b.cta_text : '';
+				$('bn-cta-link').value = b ? b.cta_link : '';
+				$('bn-active').checked = b ? b.is_active : true;
+				$('bannerModalTitle').textContent = b ? 'Editar banner' : 'Nuevo banner';
+				syncFields();
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			}
+
+			$('new-banner-btn').addEventListener('click', () => openBanner());
+			document.querySelectorAll('.edit-banner-btn').forEach((btn) => {
+				btn.addEventListener('click', () => openBanner(bannersById.get(btn.closest('[data-id]').getAttribute('data-id'))));
+			});
+
+			$('save-banner-btn').addEventListener('click', async () => {
+				bnError.classList.add('d-none');
+				const id = $('bn-id').value;
+				const source = $('bn-source').value;
+				const payload = {
+					id, source, kicker: $('bn-kicker').value.trim(), title: $('bn-title').value.trim(),
+					subtitle: $('bn-subtitle').value.trim(), cta_text: $('bn-cta-text').value.trim(), cta_link: $('bn-cta-link').value.trim(),
+					video_id: $('bn-video-id').value.trim(), video_url: $('bn-video-url').value.trim(), image_url: $('bn-image-url').value.trim(),
+					poster: $('bn-poster').value.trim(), is_active: $('bn-active').checked,
+				};
+				if (!payload.title) { bnError.textContent = 'El título es obligatorio.'; bnError.classList.remove('d-none'); return; }
+				if (source === 'youtube' && !payload.video_id) { bnError.textContent = 'Indica el ID del video de YouTube.'; bnError.classList.remove('d-none'); return; }
+				if (source === 'file' && !payload.video_url) { bnError.textContent = 'Indica la URL del video.'; bnError.classList.remove('d-none'); return; }
+				if (source === 'image' && !payload.image_url) { bnError.textContent = 'Indica la URL de la imagen.'; bnError.classList.remove('d-none'); return; }
+				try {
+					const res = await fetch(id ? '/api/catalog/banners/update' : '/api/catalog/banners/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar');
+					window.location.reload();
+				} catch (err) { bnError.textContent = err.message; bnError.classList.remove('d-none'); }
+			});
+
+			document.querySelectorAll('.delete-banner-btn').forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					if (!confirm('¿Eliminar este banner?')) return;
+					const id = btn.closest('[data-id]').getAttribute('data-id');
+					const res = await fetch('/api/catalog/banners/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+					if (res.ok) window.location.reload(); else alert('No se pudo eliminar.');
+				});
+			});
+		})();
+	</script>
+</AdminLayout>

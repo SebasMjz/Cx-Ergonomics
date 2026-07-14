@@ -1,0 +1,53 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { getSiteSettings } from '../lib/models/SiteSettings';
+
+await connectMongoose();
+const settings = await getSiteSettings();
+const socials = settings.socials || {};
+
+const networks = [
+	{ key: 'instagram', label: 'Instagram', icon: 'ri-instagram-line', color: '#E1306C', url: socials.instagram, handle: 'Síguenos en Instagram' },
+	{ key: 'tiktok', label: 'TikTok', icon: 'ri-tiktok-line', color: '#000000', url: socials.tiktok, handle: 'Míranos en TikTok' },
+	{ key: 'youtube', label: 'YouTube', icon: 'ri-youtube-line', color: '#FF0000', url: socials.youtube, handle: 'Suscríbete en YouTube' },
+	{ key: 'facebook', label: 'Facebook', icon: 'ri-facebook-circle-line', color: '#1877F2', url: socials.facebook, handle: 'Únete en Facebook' },
+	{ key: 'discord', label: 'Discord', icon: 'ri-discord-line', color: '#5865F2', url: socials.discord, handle: 'Entra a la comunidad' },
+].filter((n) => n.url);
+---
+
+<PublicLayout title="Comunidad | CX Ergonomic" active="comunidad" description="Únete a la comunidad CX Ergonomic en redes sociales.">
+	<section class="section">
+		<div class="container" style="max-width: 980px;">
+			<h1 class="section-heading">Comunidad CX</h1>
+			<p class="section-sub">{settings.community_intro || 'Conecta con nosotros, comparte tu setup y entérate de lanzamientos, promos y novedades.'}</p>
+
+			{networks.length === 0 ? (
+				<p class="text-center" style="color: var(--text-muted);">Muy pronto compartiremos nuestras redes sociales.</p>
+			) : (
+				<div class="row g-4 justify-content-center">
+					{networks.map((n) => (
+						<div class="col-12 col-sm-6 col-lg-4">
+							<a class="community-card" href={n.url} target="_blank" rel="noopener">
+								<span class="community-icon" style={`color:${n.color};`}><i class={n.icon}></i></span>
+								<span class="community-label">{n.label}</span>
+								<span class="community-handle">{n.handle}</span>
+								<span class="community-arrow"><i class="ri-arrow-right-up-line"></i></span>
+							</a>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	</section>
+
+	<style is:global>
+		.community-card { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px; padding: 2.2rem 1.5rem; text-decoration: none; text-align: center; position: relative; transition: border-color 0.25s ease, transform 0.25s ease; height: 100%; }
+		.community-card:hover { border-color: var(--line-strong); transform: translateY(-5px); }
+		.community-icon { font-size: 2.8rem; line-height: 1; }
+		.community-label { font-family: var(--font-display); font-weight: 700; color: #fff; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; }
+		.community-handle { color: var(--text-muted); font-size: 0.9rem; }
+		.community-arrow { position: absolute; top: 1rem; right: 1.1rem; color: var(--text-muted); transition: color 0.2s ease; }
+		.community-card:hover .community-arrow { color: #fff; }
+	</style>
+</PublicLayout>

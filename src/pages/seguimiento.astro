@@ -1,0 +1,320 @@
+---
+// Vista PÚBLICA de seguimiento de RMA (estilo "tracking" tipo DHL).
+// El cliente busca por su número de ticket y ve el estado, el historial externo
+// y puede adjuntar más evidencia en el mismo ticket.
+import { connectMongoose } from '../lib/mongo';
+import { TicketModel, type TicketStatus } from '../lib/models/Ticket';
+
+const ticketParam = (Astro.url.searchParams.get('ticket') || '').trim();
+
+type TrackResult = {
+	ticket_number: string;
+	status: TicketStatus;
+	isRejected: boolean;
+	customerName: string;
+	createdAtStr: string;
+	updatedAtStr: string;
+	comments: Array<{ note: string; dateStr: string; fromClient: boolean; author: string; attachments: string[] }>;
+};
+
+let result: TrackResult | null = null;
+let notFound = false;
+
+const fmt = (d: Date) =>
+	new Intl.DateTimeFormat('es-VE', {
+		day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+	}).format(new Date(d));
+
+if (ticketParam) {
+	await connectMongoose();
+	const t = await TicketModel.findOne({ ticket_number: ticketParam }).lean();
+	if (!t) {
+		notFound = true;
+	} else {
+		const externals = (t.history || []).filter((h: any) => h.visibility === 'external');
+		result = {
+			ticket_number: t.ticket_number,
+			status: t.status,
+			isRejected: t.status === 'finalizada' && t.resolution_type === 'rechazo',
+			customerName: (t.customer_details?.name || '').split(' ')[0] || 'Cliente',
+			createdAtStr: fmt(t.createdAt),
+			updatedAtStr: fmt(t.updatedAt),
+			comments: externals.map((h: any) => ({
+				note: h.note || '',
+				dateStr: fmt(h.updated_at),
+				fromClient: !!h.from_client,
+				author: h.from_client ? 'Tú' : 'Soporte',
+				attachments: Array.isArray(h.attachments) ? h.attachments : [],
+			})),
+		};
+	}
+}
+
+// Pasos del seguimiento (índice del paso activo)
+const steps = [
+	{ key: 'recibida', label: 'Nueva solicitud', icon: 'ri-inbox-line' },
+	{ key: 'en proceso', label: 'En proceso', icon: 'ri-loader-4-line' },
+	{ key: 'finalizada', label: 'Finalizada', icon: 'ri-checkbox-circle-line' },
+];
+const activeStep = result ? steps.findIndex((s) => s.key === result!.status) : -1;
+---
+
+<html lang="es" data-bs-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>Seguimiento de Garantía</title>
+		<meta name="description" content="Consulta el estado de tu solicitud de garantía (RMA) con tu código de seguimiento." />
+		<link href="/css/style.css" rel="stylesheet" />
+		<link href="/css/skin.css" rel="stylesheet" />
+		<link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet" />
+		<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet" />
+	</head>
+	<body class="bg-white py-0">
+
+		<header class="w-100 bg-body py-3 px-4 d-flex justify-content-center align-items-center border-bottom shadow-sm position-relative" style="z-index: 2; border-bottom: 3px solid #212529 !important;">
+			<span class="fw-bold text-dark" style="letter-spacing: 0.02em;">Seguimiento de RMA</span>
+		</header>
+
+		<div class="container py-5 position-relative" style="z-index: 1;">
+			<div class="row justify-content-center">
+				<div class="col-12 col-md-10 col-lg-8">
+
+					<!-- Buscador -->
+					<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body mb-4">
+						<header class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2 pb-3 border-bottom">
+							<div>
+								<h1 class="h3 fw-bold mb-1 text-dark"><i class="ri-map-pin-time-line me-2"></i>Seguimiento de tu Garantía</h1>
+								<p class="text-muted small mb-0">Ingresa tu código de seguimiento (ej. RMA-2026-1001) para ver el estado actual.</p>
+							</div>
+							<a href="/rma/new" class="btn btn-sm btn-outline-secondary rounded-pill px-3"><i class="ri-arrow-left-line me-1"></i>Volver atrás</a>
+						</header>
+						<form method="get" action="/seguimiento" class="d-flex flex-column flex-sm-row gap-2">
+							<input type="text" name="ticket" class="form-control form-control-lg" value={ticketParam} placeholder="RMA-2026-XXXX" required />
+							<button type="submit" class="btn btn-dark px-4 fw-bold rounded-3 text-nowrap">
+								<i class="ri-search-line me-1"></i> Consultar
+							</button>
+						</form>
+					</div>
+
+					{notFound && (
+						<div class="alert alert-warning d-flex align-items-center gap-2">
+							<i class="ri-error-warning-line fs-5"></i>
+							<div>No encontramos ninguna solicitud con el código <strong>{ticketParam}</strong>. Verifica que esté escrito correctamente.</div>
+						</div>
+					)}
+
+					{result && (
+						<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body">
+							<!-- Encabezado del caso -->
+							<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4 pb-3 border-bottom">
+								<div>
+									<span class="text-muted small d-block text-uppercase" style="letter-spacing: 0.05em; font-size: 0.7rem;">Caso / Seguimiento</span>
+									<strong class="h4 text-dark fw-bold d-block font-monospace">{result.ticket_number}</strong>
+									<span class="text-muted small">Hola {result.customerName}, registrado el {result.createdAtStr}</span>
+								</div>
+								{result.isRejected ? (
+									<span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fs-6">Rechazada</span>
+								) : result.status === 'finalizada' ? (
+									<span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fs-6">Finalizada</span>
+								) : result.status === 'en proceso' ? (
+									<span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2 fs-6">En proceso</span>
+								) : (
+									<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">Nueva solicitud</span>
+								)}
+							</div>
+
+							<!-- Stepper tipo DHL -->
+							<div class="track-stepper mb-4">
+								{steps.map((step, i) => (
+									<div class={`track-step ${i < activeStep ? 'done' : ''} ${i === activeStep ? 'active' : ''} ${result.isRejected && i === activeStep ? 'rejected' : ''}`}>
+										<div class="track-dot"><i class={step.icon}></i></div>
+										<span class="track-label">{step.label}</span>
+									</div>
+								))}
+							</div>
+
+							<!-- Historial visible para el cliente -->
+							<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;">Actualizaciones</h6>
+							{result.comments.length === 0 ? (
+								<p class="text-muted small">Aún no hay actualizaciones públicas. Te avisaremos por aquí y por WhatsApp.</p>
+							) : (
+								<ul class="track-timeline mb-4">
+									{result.comments.map((c) => (
+										<li class={c.fromClient ? 'from-client' : ''}>
+											<div class="d-flex justify-content-between small mb-1">
+												<strong class="text-dark">{c.author}</strong>
+												<span class="text-muted" style="font-size: 0.72rem;">{c.dateStr}</span>
+											</div>
+											<p class="mb-1 text-body" style="font-size: 0.88rem; line-height: 1.45; white-space: pre-line;">{c.note}</p>
+											{c.attachments.length > 0 && (
+												<div class="d-flex flex-wrap gap-2 mt-2">
+													{c.attachments.map((url) => (
+														<a href={url} target="_blank" rel="noopener" class="track-attach border rounded overflow-hidden d-flex align-items-center justify-content-center bg-light">
+															<img src={url} alt="Adjunto" style="max-width: 100%; max-height: 100%; object-fit: cover;" />
+														</a>
+													))}
+												</div>
+											)}
+										</li>
+									))}
+								</ul>
+							)}
+
+							<!-- Formulario para adjuntar más evidencia -->
+							<div class="mt-4 pt-4 border-top">
+								<h6 class="fw-bold text-dark mb-1">¿Necesitas agregar algo?</h6>
+								<p class="text-muted small mb-3">Puedes escribir un comentario y adjuntar más fotos o videos a este mismo caso.</p>
+
+								<textarea class="form-control mb-2" id="client-note" rows="3" placeholder="Escribe aquí más detalles..."></textarea>
+
+								<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary mb-2" id="client-upload-zone" style="cursor: pointer;">
+									<i class="ri-folder-upload-line fs-3 text-muted d-block mb-1"></i>
+									<span class="small text-secondary fw-semibold upload-label">Adjuntar fotos o videos (máx. 5)</span>
+									<input type="file" id="client-file" class="d-none" accept="image/*,video/*" multiple />
+								</div>
+								<div id="client-preview" class="d-flex flex-column gap-2 mb-2"></div>
+
+								<input type="hidden" id="client-ticket-number" value={result.ticket_number} />
+								<button type="button" class="btn btn-dark w-100 py-2 fw-bold rounded-pill" id="client-send-btn">
+									<i class="ri-send-plane-line me-1"></i> Enviar mensaje
+								</button>
+								<div class="alert alert-success d-none mt-3 py-2 small" id="client-ok"></div>
+								<div class="alert alert-danger d-none mt-3 py-2 small" id="client-err"></div>
+							</div>
+						</div>
+					)}
+
+				</div>
+			</div>
+		</div>
+
+		<style>
+			:root, [data-bs-theme='light'] {
+				--bs-primary: #0d6efd;
+			}
+			.cx-watermark {
+				position: fixed; inset: 0; z-index: 0; pointer-events: none;
+				background-image: url('/img/logo-cx-ergonomic.webp');
+				background-repeat: repeat; background-size: 240px auto;
+				filter: invert(1) grayscale(1); opacity: 0.06;
+			}
+			.upload-zone { transition: border-color 0.2s, background-color 0.2s; }
+			.upload-zone:hover { border-color: #212529 !important; }
+
+			/* Stepper tipo DHL */
+			.track-stepper { display: flex; align-items: flex-start; justify-content: space-between; position: relative; }
+			.track-step { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
+			.track-step::before {
+				content: ''; position: absolute; top: 22px; left: -50%; width: 100%; height: 3px; background: #e5e7eb; z-index: 0;
+			}
+			.track-step:first-child::before { display: none; }
+			.track-step.done::before, .track-step.active::before { background: #198754; }
+			.track-step.rejected::before { background: #dc3545; }
+			.track-dot {
+				width: 46px; height: 46px; border-radius: 50%; background: #fff; border: 3px solid #e5e7eb;
+				display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 1.2rem; position: relative; z-index: 1;
+			}
+			.track-step.done .track-dot { border-color: #198754; color: #198754; background: #f0fdf4; }
+			.track-step.active .track-dot { border-color: #198754; color: #fff; background: #198754; box-shadow: 0 0 0 5px rgba(25,135,84,0.15); }
+			.track-step.rejected .track-dot { border-color: #dc3545; color: #fff; background: #dc3545; box-shadow: 0 0 0 5px rgba(220,53,69,0.15); }
+			.track-label { margin-top: 0.6rem; font-size: 0.8rem; font-weight: 600; color: #6b7280; }
+			.track-step.active .track-label, .track-step.done .track-label { color: #212529; }
+
+			/* Timeline */
+			.track-timeline { list-style: none; padding: 0; margin: 0; }
+			.track-timeline li { border-left: 2px solid #e7e9ee; padding: 0 0 1.1rem 1.1rem; position: relative; }
+			.track-timeline li::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #6b7280; }
+			.track-timeline li.from-client::before { background: #0d6efd; }
+			.track-attach { width: 70px; height: 70px; display: block; }
+			.track-attach img { width: 100%; height: 100%; object-fit: cover; }
+		</style>
+
+		<script>
+			document.addEventListener('DOMContentLoaded', () => {
+				const zone = document.querySelector<HTMLElement>('#client-upload-zone');
+				const input = document.querySelector<HTMLInputElement>('#client-file');
+				const preview = document.querySelector<HTMLElement>('#client-preview');
+				const sendBtn = document.querySelector<HTMLButtonElement>('#client-send-btn');
+				const noteEl = document.querySelector<HTMLTextAreaElement>('#client-note');
+				const ticketEl = document.querySelector<HTMLInputElement>('#client-ticket-number');
+				const okEl = document.querySelector<HTMLElement>('#client-ok');
+				const errEl = document.querySelector<HTMLElement>('#client-err');
+				if (!sendBtn) return; // no hay ticket cargado
+
+				let urls: string[] = [];
+
+				function render() {
+					if (!preview) return;
+					preview.innerHTML = urls.map((url, i) => {
+						const ext = url.split('.').pop()?.toLowerCase();
+						const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
+						return `<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light">
+							<span class="small text-truncate" style="max-width: 220px;">${isVideo ? '🎬' : '🖼️'} ${url.split('/').pop()}</span>
+							<button type="button" class="btn btn-sm btn-link text-danger p-0 rm-att" data-i="${i}">Quitar</button>
+						</div>`;
+					}).join('');
+					preview.querySelectorAll('.rm-att').forEach((b) => b.addEventListener('click', () => {
+						urls.splice(parseInt(b.getAttribute('data-i') || '0', 10), 1); render();
+					}));
+				}
+
+				function uploadFile(file: File): Promise<string> {
+					const kind = file.type.startsWith('video/') ? 'video' : 'receipt';
+					const fd = new FormData(); fd.append('file', file);
+					return new Promise((resolve, reject) => {
+						const xhr = new XMLHttpRequest();
+						xhr.open('POST', `/api/tickets/upload?kind=${kind}`);
+						xhr.addEventListener('load', () => {
+							if (xhr.status === 201) { const r = JSON.parse(xhr.responseText); resolve(r.path || r.url); }
+							else { try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error('Error al subir')); } }
+						});
+						xhr.addEventListener('error', () => reject(new Error('Error de red')));
+						xhr.send(fd);
+					});
+				}
+
+				zone?.addEventListener('click', () => input?.click());
+				input?.addEventListener('change', async () => {
+					const files = input.files;
+					if (!files || !files.length) return;
+					const label = zone?.querySelector('.upload-label');
+					for (const file of Array.from(files)) {
+						if (urls.length >= 5) { alert('Máximo 5 archivos.'); break; }
+						try { if (label) label.textContent = `Subiendo ${file.name}...`; urls.push(await uploadFile(file)); render(); }
+						catch (e: any) { if (errEl) { errEl.textContent = e.message; errEl.classList.remove('d-none'); } }
+					}
+					if (label) label.textContent = 'Adjuntar fotos o videos (máx. 5)';
+					input.value = '';
+				});
+
+				sendBtn.addEventListener('click', async () => {
+					okEl?.classList.add('d-none');
+					errEl?.classList.add('d-none');
+					const note = noteEl?.value.trim() || '';
+					if (!note && urls.length === 0) {
+						if (errEl) { errEl.textContent = 'Escribe un comentario o adjunta un archivo.'; errEl.classList.remove('d-none'); }
+						return;
+					}
+					try {
+						sendBtn.disabled = true; sendBtn.textContent = 'Enviando...';
+						const res = await fetch('/api/tickets/client-comment', {
+							method: 'POST', headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({ ticketNumber: ticketEl?.value, note, attachments: urls }),
+						});
+						const data = await res.json();
+						if (!res.ok) throw new Error(data.error || 'Error al enviar');
+						if (okEl) { okEl.textContent = '✓ Enviado. Lo verás reflejado en tu seguimiento.'; okEl.classList.remove('d-none'); }
+						setTimeout(() => window.location.reload(), 900);
+					} catch (e: any) {
+						if (errEl) { errEl.textContent = e.message; errEl.classList.remove('d-none'); }
+						sendBtn.disabled = false;
+						sendBtn.innerHTML = '<i class="ri-send-plane-line me-1"></i> Enviar mensaje';
+					}
+				});
+			});
+		</script>
+	</body>
+</html>

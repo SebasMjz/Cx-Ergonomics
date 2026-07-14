@@ -1,0 +1,94 @@
+---
+import AdminSidebar from './AdminSidebar.astro';
+
+interface Props {
+	title: string;
+	active?: string;
+	heading: string;
+	subheading?: string;
+	session: { name: string; role: 'admin' | 'technical' };
+	headExtra?: string;
+}
+
+const { title, active = '', heading, subheading = '', session } = Astro.props;
+---
+
+<html lang="es" data-bs-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0, viewport-fit=cover" />
+		<title>{title}</title>
+		<link href="/css/style.css" rel="stylesheet" />
+		<link href="/css/skin.css" rel="stylesheet" />
+		<link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.css" rel="stylesheet" />
+		<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" />
+		<slot name="head" />
+		<style>
+			:root, [data-bs-theme='light'] {
+				--bs-primary: #212529 !important;
+				--bs-primary-rgb: 33, 37, 41 !important;
+				--bs-link-color: #495057 !important;
+				--bs-link-hover-color: #212529 !important;
+			}
+			body { background-color: #f3f4f6 !important; color: #212529 !important; }
+			.card { background-color: #ffffff !important; border-color: rgba(0, 0, 0, 0.08) !important; }
+
+			.border-dashed { border-style: dashed !important; }
+
+			/* ---- Sidebar: columna flexible con footer fijo y contenido desplazable ---- */
+			.sidebar { display: flex !important; flex-direction: column; height: 100vh; }
+			.sidebar-content { flex: 1 1 auto !important; overflow-y: auto; min-height: 0; }
+			.sidebar-footer { flex: 0 0 auto !important; }
+			.sidebar-footer #logout-button { white-space: nowrap; }
+			/* Estados del sidebar colapsado (replicado de rma) */
+			.sidebar.sidebar-mini:not(.open) .normal-logo,
+			.sidebar.sidebar-mini:not(.open) .brand-name { display: none !important; }
+			.sidebar.sidebar-mini:not(.open) .mini-logo { display: block !important; }
+			.sidebar.sidebar-mini:not(.open) .sidebar-header { justify-content: center !important; }
+			.sidebar.sidebar-mini:not(.open) .toggle-mini { display: none !important; }
+			.sidebar.sidebar-mini.open .mini-logo { display: none !important; }
+			.sidebar.sidebar-mini:not(.open) .sidebar-footer > div:first-child { display: none !important; }
+			.sidebar.sidebar-mini:not(.open) .sidebar-footer { padding: 0.75rem 0.5rem !important; display: flex; justify-content: center; }
+			.sidebar.sidebar-mini:not(.open) #logout-button { width: 40px !important; height: 40px !important; padding: 0 !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+			.sidebar.sidebar-mini:not(.open) #logout-button span { display: none !important; }
+			.sidebar.sidebar-mini:not(.open) .sidebar-footer #logout-button i { display: inline-block !important; margin: 0 !important; font-size: 1.15rem !important; }
+		</style>
+	</head>
+	<body>
+		<div class="wrapper">
+			<AdminSidebar active={active} session={session} />
+
+			<main class="main-content px-2">
+				<header class="navbar navbar-expand-lg border-bottom px-3 py-2 bg-dark navbar-dark shadow-sm">
+					<div class="container-fluid">
+						<button class="btn btn-icon border-0 me-2 text-white" id="sidebar-toggle" type="button" aria-label="Toggle navigation">
+							<i class="ri-menu-2-line fs-4"></i>
+						</button>
+						<span class="navbar-text small text-white-50 d-none d-sm-inline-block">
+							<i class="ri-settings-4-line me-1"></i> {heading}
+						</span>
+					</div>
+				</header>
+
+				<div class="content-wrapper py-5">
+					<div class="container-fluid">
+						<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+							<div>
+								<h1 class="h3 mb-0 fw-bold text-dark">{heading}</h1>
+								{subheading && <p class="text-muted small mb-0">{subheading}</p>}
+							</div>
+							<slot name="actions" />
+						</div>
+
+						<slot />
+					</div>
+				</div>
+			</main>
+		</div>
+
+		<slot name="scripts" />
+		<script src="/js/main.js" type="module" is:inline></script>
+	</body>
+</html>

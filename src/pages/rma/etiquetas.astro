@@ -1,0 +1,168 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { TagModel } from '../../lib/models/Tag';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+if (session.role !== 'admin') return Astro.redirect('/rma');
+
+await connectMongoose();
+const tags = await TagModel.find().sort({ order: 1 }).lean();
+---
+
+<AdminLayout
+	title="Etiquetas | CX Ergonomic"
+	active="etiquetas"
+	heading="Etiquetas"
+	subheading="Crea etiquetas (NEW, PROMO…) y asígnalas a los productos."
+	session={session}
+>
+	<button slot="actions" class="btn btn-dark rounded-pill px-3 fw-semibold" id="new-tag-btn">
+		<i class="ri-add-line me-1"></i> Nueva etiqueta
+	</button>
+
+	<div class="card shadow-sm">
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead class="table-light">
+						<tr>
+							<th class="px-4 py-3">Etiqueta</th>
+							<th class="py-3">Color</th>
+							<th class="py-3">Estado</th>
+							<th class="px-4 py-3 text-end">Acciones</th>
+						</tr>
+					</thead>
+					<tbody>
+						{tags.length === 0 ? (
+							<tr><td colspan="4" class="text-center text-muted py-5">No hay etiquetas. Crea la primera.</td></tr>
+						) : tags.map((tag) => (
+							<tr data-id={tag._id.toString()} data-name={tag.name} data-color={tag.color} data-active={String(tag.is_active)}>
+								<td class="px-4 py-3 fw-semibold">
+									<span class="badge" style={`background:${tag.color}; color:#000; border:1px solid rgba(0,0,0,.15);`}>{tag.name}</span>
+								</td>
+								<td class="py-3"><code>{tag.color}</code></td>
+								<td class="py-3">
+									{tag.is_active
+										? <span class="badge bg-success-subtle text-success">Activa</span>
+										: <span class="badge bg-secondary-subtle text-secondary">Oculta</span>}
+								</td>
+								<td class="px-4 py-3 text-end">
+									<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 edit-tag-btn">Editar</button>
+									<button class="btn btn-sm btn-outline-danger rounded-pill px-3 delete-tag-btn">Eliminar</button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal crear/editar -->
+	<div class="modal fade" id="tagModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+			<div class="modal-content border-0 shadow" style="border-radius: 12px;">
+				<div class="modal-header bg-light">
+					<h5 class="modal-title fw-bold" id="tagModalTitle">Nueva etiqueta</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<input type="hidden" id="tag-id" />
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Nombre</label>
+						<input type="text" class="form-control" id="tag-name" placeholder="Ej. NEW" />
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Color</label>
+						<div class="d-flex align-items-center gap-2">
+							<input type="color" class="form-control form-control-color" id="tag-color" value="#ffd400" />
+							<input type="text" class="form-control" id="tag-color-text" value="#ffd400" />
+						</div>
+					</div>
+					<div class="form-check">
+						<input type="checkbox" class="form-check-input" id="tag-active" checked />
+						<label class="form-check-label small" for="tag-active">Visible en la tienda</label>
+					</div>
+					<div class="alert alert-danger d-none mt-3 py-2 small" id="tag-error"></div>
+				</div>
+				<div class="modal-footer border-top-0">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-dark rounded-pill px-3" id="save-tag-btn">Guardar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const modalEl = document.getElementById('tagModal');
+			const elId = document.getElementById('tag-id');
+			const elName = document.getElementById('tag-name');
+			const elColor = document.getElementById('tag-color');
+			const elColorText = document.getElementById('tag-color-text');
+			const elActive = document.getElementById('tag-active');
+			const elError = document.getElementById('tag-error');
+			const elTitle = document.getElementById('tagModalTitle');
+
+			elColor.addEventListener('input', () => { elColorText.value = elColor.value; });
+			elColorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(elColorText.value)) elColor.value = elColorText.value; });
+
+			function openModal(data) {
+				elError.classList.add('d-none');
+				elId.value = data ? data.id : '';
+				elName.value = data ? data.name : '';
+				elColor.value = data ? data.color : '#ffd400';
+				elColorText.value = data ? data.color : '#ffd400';
+				elActive.checked = data ? data.active : true;
+				elTitle.textContent = data ? 'Editar etiqueta' : 'Nueva etiqueta';
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			}
+
+			document.getElementById('new-tag-btn').addEventListener('click', () => openModal());
+
+			document.querySelectorAll('.edit-tag-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const row = btn.closest('tr');
+					openModal({
+						id: row.getAttribute('data-id'),
+						name: row.getAttribute('data-name'),
+						color: row.getAttribute('data-color'),
+						active: row.getAttribute('data-active') === 'true',
+					});
+				});
+			});
+
+			document.getElementById('save-tag-btn').addEventListener('click', async () => {
+				elError.classList.add('d-none');
+				const id = elId.value;
+				const payload = { id, name: elName.value.trim(), color: elColor.value, is_active: elActive.checked };
+				if (!payload.name) { elError.textContent = 'El nombre es obligatorio.'; elError.classList.remove('d-none'); return; }
+				try {
+					const res = await fetch(id ? '/api/catalog/tags/update' : '/api/catalog/tags/create', {
+						method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar');
+					window.location.reload();
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+			});
+
+			document.querySelectorAll('.delete-tag-btn').forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					const row = btn.closest('tr');
+					if (!confirm('¿Eliminar esta etiqueta? Se quitará de todos los productos.')) return;
+					const res = await fetch('/api/catalog/tags/delete', {
+						method: 'POST', headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ id: row.getAttribute('data-id') }),
+					});
+					if (res.ok) window.location.reload(); else alert('No se pudo eliminar.');
+				});
+			});
+		})();
+	</script>
+</AdminLayout>

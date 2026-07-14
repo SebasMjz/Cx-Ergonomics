@@ -1,43 +1,55 @@
-# Astro Starter Kit: Minimal
+# CX Importations
 
-```sh
-npm create astro@latest -- --template minimal
+Base inicial con Astro en modo servidor y MongoDB local para desarrollo.
+
+## Requisitos
+
+- Node.js 22.12 o superior.
+- Docker y Docker Compose para levantar MongoDB local.
+
+## Configuracion
+
+1. Crea o ajusta el archivo `.env` en la raiz del proyecto.
+2. Usa estos valores base si quieres correr todo en local:
+
+```env
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB=cx-importations
+PUBLIC_SITE_URL=http://localhost:4321
+PORT=4321
+JWT_SECRET=change-this-in-production
+JWT_EXPIRES_IN=7d
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Arranque local
 
-## 🚀 Project Structure
+1. Levanta MongoDB con `npm run db:up`.
+2. Inicia la app con `npm run dev`.
 
-Inside of your Astro project, you'll see the following folders and files:
+Si necesitas ejecutar el servidor SSR compilado despues de un build, usa `npm run server:prod`.
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+## Validación
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+- `GET /api/health` devuelve el estado de la conexión a MongoDB.
+- La pagina principal muestra un resumen visual del estado local.
+- `npm run build` compila el proyecto para SSR.
+- `npm run server:prod` levanta el servidor sobre el build generado en `dist/`.
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+## Flujo de cambios
 
-Any static assets, like images, can be placed in the `public/` directory.
+Cuando hagas cambios en el codigo:
 
-## 🧞 Commands
+1. Ejecuta `npm run dev` mientras desarrollas.
+2. Cuando termines una tanda de cambios, corre `npm run build` para validar que compile.
+3. Si quieres probar el resultado final, inicia `npm run server:prod` despues del build.
 
-All commands are run from the root of the project, from a terminal:
+## Scripts
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+| Command           | Action                                     |
+| :---------------- | :----------------------------------------- |
+| `npm run dev`     | Dev server local                           |
+| `npm run build`   | Build SSR para despliegue                  |
+| `npm run preview` | Vista previa del build                     |
+| `npm run check`   | Verificación de tipos y configuración Astro |
+| `npm run db:up`   | Levanta MongoDB local con Docker Compose   |
+| `npm run db:down` | Detiene MongoDB local                      |

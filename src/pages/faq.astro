@@ -1,0 +1,49 @@
+---
+import PublicLayout from '../components/PublicLayout.astro';
+import { connectMongoose } from '../lib/mongo';
+import { FaqModel } from '../lib/models/Faq';
+
+await connectMongoose();
+const faqs = await FaqModel.find({ is_active: true }).sort({ order: 1 }).lean();
+---
+
+<PublicLayout title="Preguntas Frecuentes | CX Ergonomic" active="faq" description="Resuelve tus dudas sobre productos, garantías y envíos de CX Ergonomic.">
+	<section class="section">
+		<div class="container" style="max-width: 880px;">
+			<h1 class="section-heading">Preguntas Frecuentes</h1>
+			<p class="section-sub">Encuentra respuestas sobre nuestros productos, garantías y soporte.</p>
+
+			{faqs.length === 0 ? (
+				<p class="text-center" style="color: var(--text-muted);">Aún no hay preguntas publicadas.</p>
+			) : (
+				<div class="accordion" id="faqAccordion">
+					{faqs.map((faq, i) => (
+						<div class="accordion-item faq-item">
+							<h2 class="accordion-header">
+								<button class={`accordion-button ${i === 0 ? '' : 'collapsed'}`} type="button" data-bs-toggle="collapse" data-bs-target={`#faq-${i}`} aria-expanded={i === 0 ? 'true' : 'false'}>
+									{faq.question}
+								</button>
+							</h2>
+							<div id={`faq-${i}`} class={`accordion-collapse collapse ${i === 0 ? 'show' : ''}`} data-bs-parent="#faqAccordion">
+								<div class="accordion-body" set:text={faq.answer}></div>
+							</div>
+						</div>
+					))}
+				</div>
+			)}
+
+			<div class="text-center mt-5">
+				<p style="color: var(--text-muted);">¿No encontraste lo que buscabas?</p>
+				<a href="/rma/new" class="btn-cx-primary">Contactar soporte <i class="ri-arrow-right-line"></i></a>
+			</div>
+		</div>
+	</section>
+
+	<style is:global>
+		.faq-item { background: var(--bg-elev) !important; border: 1px solid var(--line) !important; margin-bottom: 0.75rem; border-radius: 6px !important; overflow: hidden; }
+		.faq-item .accordion-button { background: var(--bg-elev) !important; color: #fff !important; font-family: var(--font-display); font-weight: 600; box-shadow: none !important; }
+		.faq-item .accordion-button:not(.collapsed) { color: #fff !important; background: var(--bg-elev-2) !important; }
+		.faq-item .accordion-button::after { filter: invert(1); }
+		.faq-item .accordion-body { color: var(--text-muted); line-height: 1.6; white-space: pre-line; }
+	</style>
+</PublicLayout>

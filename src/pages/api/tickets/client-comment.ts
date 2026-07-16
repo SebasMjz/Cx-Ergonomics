@@ -47,11 +47,18 @@ export const POST: APIRoute = async ({ request }) => {
 			$push: { history: historyItem }
 		};
 
+		// Append new attachments to the main evidence_video list so they appear in the admin board evidences grid
+		if (attachments.length > 0) {
+			const existingList = (ticket.evidence_video || '').split(',').filter(Boolean);
+			const combinedList = [...existingList, ...attachments];
+			if (!updateData.$set) updateData.$set = {};
+			updateData.$set.evidence_video = combinedList.join(',');
+		}
+
 		if (ticket.status === 'finalizada') {
-			updateData.$set = {
-				status: 'recibida',
-				step_resolved: false,
-			};
+			if (!updateData.$set) updateData.$set = {};
+			updateData.$set.status = 'recibida';
+			updateData.$set.step_resolved = false;
 			updateData.$unset = {
 				resolution_type: '',
 				resolution_main_comment: '',

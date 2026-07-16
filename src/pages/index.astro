@@ -18,9 +18,9 @@ const newDays = settings.new_badge_days ?? 30;
 let categories = await CategoryModel.find({ is_active: true }).lean();
 if (categories.length === 0) {
 	const defaultCats = [
-		{ name: 'Mesas Electricas', slug: 'mesas-electricas', description: 'Mesas ergonomicas electricas para estaciones de trabajo.' },
-		{ name: 'Brazos Monitor', slug: 'brazos-monitor', description: 'Brazos articulados para monitores simples y dobles.' },
-		{ name: 'Accesorios Ergonomicos', slug: 'accesorios-ergonomicos', description: 'Accesorios y complementos para puestos de trabajo.' },
+		{ name: 'Mesas Electricas', slug: 'mesas-electricas', description: 'Mesas ergonomicas electricas para estaciones de trabajo.', image: '/uploads/products/1024-6.png' },
+		{ name: 'Brazos Monitor', slug: 'brazos-monitor', description: 'Brazos articulados para monitores simples y dobles.', image: '/uploads/products/3-3-1-Photoroom-1024x1024.png' },
+		{ name: 'Accesorios Ergonomicos', slug: 'accesorios-ergonomicos', description: 'Accesorios y complementos para puestos de trabajo.', image: '/uploads/products/4_436194dd-03ac-4c8f-a977-ad3139f101d2-1-Photoroom-1024x1024.webp' },
 	];
 	await CategoryModel.insertMany(defaultCats);
 	categories = await CategoryModel.find({ is_active: true }).lean();

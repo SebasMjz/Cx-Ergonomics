@@ -45,6 +45,9 @@ export interface ITicket extends Document {
 	client_solution?: string;
 	// Solución que nos dio el proveedor (puede registrarse antes o después que la del cliente).
 	supplier_solution?: string;
+	step_left_at_branch?: boolean;
+	step_sent_to_distributor?: boolean;
+	step_resolved?: boolean;
 	history: ITicketHistoryItem[];
 	archived: boolean;
 	order?: number;
@@ -101,6 +104,9 @@ const TicketSchema = new Schema<ITicket>(
 		resolution_main_comment: { type: String, trim: true },
 		client_solution: { type: String, trim: true },
 		supplier_solution: { type: String, trim: true },
+		step_left_at_branch: { type: Boolean, default: false },
+		step_sent_to_distributor: { type: Boolean, default: false },
+		step_resolved: { type: Boolean, default: false },
 		history: { type: [TicketHistorySchema], default: [] },
 		archived: { type: Boolean, default: false },
 		order: { type: Number, default: 0 },

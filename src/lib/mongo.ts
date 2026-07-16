@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
-const mongoUri = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017';
-const mongoDbName = process.env.MONGODB_DB ?? 'cx-importations';
+const mongoUri = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MONGODB_URI : undefined) ?? process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017';
+const mongoDbName = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MONGODB_DB : undefined) ?? process.env.MONGODB_DB ?? 'cx-importations';
 
 declare global {
 	// eslint-disable-next-line no-var

@@ -8000,6 +8000,15 @@ var AsteroAdmin = (function () {
 
   // Initializes theme system and sets up theme toggle functionality
   const darkMode = () => {
+    // Check if the HTML element has data-theme-fixed attribute
+    const fixedTheme = document.documentElement.getAttribute("data-theme-fixed");
+    if (fixedTheme) {
+      // Force set the theme on the HTML element without saving/changing localStorage
+      document.documentElement.setAttribute("data-bs-theme", fixedTheme);
+      updateThemeIcon(fixedTheme);
+      return;
+    }
+
     // Apply user's preferred theme on load
     setTheme(getPreferredTheme());
 

@@ -173,7 +173,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 })));
 ---
 
-<html lang="es" data-bs-theme="light">
+<html lang="es" data-bs-theme="light" data-theme-fixed="light">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -690,6 +690,30 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			</div>
 		</div>
 
+		<!-- Global Toast Container -->
+		<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+			<div id="app-toast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" style="border-radius: 10px;">
+				<div class="d-flex align-items-center">
+					<div class="toast-body d-flex align-items-center gap-2">
+						<i id="app-toast-icon" class="fs-5"></i>
+						<span id="app-toast-message">Mensaje</span>
+					</div>
+					<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Media Preview Overlay -->
+		<div id="mediaPreviewOverlay" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-black bg-opacity-90 align-items-center justify-content-center" style="z-index: 2000; transition: opacity 0.3s ease;">
+			<button id="mediaPreviewClose" class="btn btn-outline-light btn-sm rounded-circle position-absolute top-0 end-0 m-4 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-size: 1.5rem; border: none; background: rgba(255,255,255,0.1); cursor: pointer;">
+				<i class="ri-close-line"></i>
+			</button>
+			<div class="media-preview-content position-relative d-flex justify-content-center align-items-center" style="max-height: 85vh; max-width: 90vw;">
+				<img id="mediaPreviewImage" src="" alt="Previsualización" class="img-fluid d-none" style="max-height: 85vh; max-width: 90vw; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
+				<video id="mediaPreviewVideo" src="" controls class="d-none" style="max-height: 85vh; max-width: 90vw; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"></video>
+			</div>
+		</div>
+
 		<!-- Serialized Ticket Data -->
 		<script is:inline set:html={`window.ALL_TICKETS = ${ticketsJson};`} />
 		<script is:inline set:html={`window.CX_WA = { rechazo: ${JSON.stringify(waRechazoTemplate)}, trackingBase: ${JSON.stringify(trackingBase)} };`} />
@@ -907,11 +931,111 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				margin: 0 !important;
 				font-size: 1.15rem !important;
 			}
+
+			/* iOS Notes style Checklist */
+			.ios-checkbox-input {
+				appearance: none;
+				-webkit-appearance: none;
+				width: 22px;
+				height: 22px;
+				border: 1.5px solid #ced4da;
+				border-radius: 50%;
+				outline: none;
+				cursor: pointer;
+				position: relative;
+				background-color: #fff;
+				transition: background-color 0.2s, border-color 0.2s;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				vertical-align: middle;
+				flex-shrink: 0;
+			}
+			.ios-checkbox-input:checked {
+				background-color: #f59e0b; /* Yellow checklist color like iOS Notes */
+				border-color: #f59e0b;
+			}
+			.ios-checkbox-input:checked::after {
+				content: '';
+				position: absolute;
+				width: 5px;
+				height: 9px;
+				border: solid white;
+				border-width: 0 2px 2px 0;
+				transform: rotate(45deg);
+				top: 3px;
+				left: 7px;
+			}
+			.ios-checkbox-label {
+				transition: color 0.2s, text-decoration 0.2s;
+				user-select: none;
+				vertical-align: middle;
+			}
+			.ios-checkbox-input:checked + .ios-checkbox-label {
+				color: #6c757d !important;
+				text-decoration: line-through;
+			}
 		</style>
 
 		<!-- Drag and Drop & Modal implementation scripts -->
 		<script>
 			document.addEventListener('DOMContentLoaded', () => {
+				function showToast(message: string, type: 'success' | 'danger' | 'warning' | 'info' = 'danger') {
+					const toastEl = document.getElementById('app-toast');
+					const iconEl = document.getElementById('app-toast-icon');
+					const msgEl = document.getElementById('app-toast-message');
+					if (!toastEl || !iconEl || !msgEl) return;
+
+					// Reset classes
+					toastEl.className = 'toast align-items-center text-white border-0 shadow-lg';
+					iconEl.className = 'fs-5';
+
+					// Apply type style
+					if (type === 'success') {
+						toastEl.classList.add('bg-success');
+						iconEl.className = 'ri-checkbox-circle-fill fs-5';
+					} else if (type === 'warning') {
+						toastEl.classList.add('bg-warning', 'text-dark');
+						toastEl.classList.remove('text-white');
+						iconEl.className = 'ri-error-warning-fill fs-5';
+					} else if (type === 'info') {
+						toastEl.classList.add('bg-info');
+						iconEl.className = 'ri-information-fill fs-5';
+					} else {
+						toastEl.classList.add('bg-danger');
+						iconEl.className = 'ri-close-circle-fill fs-5';
+					}
+
+					msgEl.textContent = message;
+
+					// @ts-ignore
+					const bsToast = bootstrap.Toast.getOrCreateInstance(toastEl);
+					bsToast.show();
+				}
+
+				// Close handler for media preview overlay
+				const previewOverlay = document.getElementById('mediaPreviewOverlay');
+				const previewCloseBtn = document.getElementById('mediaPreviewClose');
+				const previewVideo = document.getElementById('mediaPreviewVideo') as HTMLVideoElement | null;
+
+				if (previewOverlay && previewCloseBtn) {
+					const closeAction = () => {
+						previewOverlay.classList.add('d-none');
+						previewOverlay.classList.remove('d-flex');
+						if (previewVideo) {
+							previewVideo.pause();
+							previewVideo.src = '';
+						}
+					};
+
+					previewCloseBtn.addEventListener('click', closeAction);
+					previewOverlay.addEventListener('click', (e) => {
+						if (e.target === previewOverlay) {
+							closeAction();
+						}
+					});
+				}
+
 				const draggables = document.querySelectorAll('.draggable-ticket');
 				const columns = document.querySelectorAll('.lane-column');
 
@@ -1138,6 +1262,18 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 						// Al pasar a "Finalizada" se exige registrar la resolución antes de guardar.
 						if (newStatus === 'finalizada' && ticketNumber) {
+							// @ts-ignore
+							const ticket = window.ALL_TICKETS.find(t => t.ticket_number === ticketNumber);
+							if (ticket) {
+								const step1 = !!ticket.step_left_at_branch;
+								const step2 = !!ticket.step_sent_to_distributor;
+								const step3 = !!ticket.step_resolved;
+								if (!step1 || !step2 || !step3) {
+									showToast('Debes completar los 3 pasos obligatorios en los detalles del ticket (Producto dejado en sucursal, Producto mandado con distribuidor y Producto dado solución) antes de finalizar este ticket.', 'danger');
+									window.location.reload();
+									return;
+								}
+							}
 							openFinalizeModal(ticketNumber, newStatus, orderedNumbers);
 							return;
 						}
@@ -1158,7 +1294,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							window.location.reload();
 						} catch (error) {
 							console.error(error);
-							alert('No se pudo guardar el cambio de estado en el servidor.');
+							showToast('No se pudo guardar el cambio de estado en el servidor.', 'danger');
 							window.location.reload();
 						}
 					});
@@ -1243,19 +1379,25 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							return `
 								<div class="col-6 mb-3">
 									<span class="small text-muted d-block mb-1">Evidencia ${index + 1} (Video)</span>
-									<div class="border rounded-3 overflow-hidden bg-black ratio ratio-4x3">
-										<video src="${url}" controls class="w-100 h-100 object-fit-contain"></video>
-									</div>
+									<a href="${url}" class="d-block border rounded-3 overflow-hidden position-relative bg-black ratio ratio-4x3 preview-trigger" style="border-style: solid !important;">
+										<video src="${url}" class="w-100 h-100 object-fit-contain" muted preload="metadata"></video>
+										<div class="position-absolute top-50 start-50 translate-middle text-white bg-dark bg-opacity-50 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; z-index: 5;">
+											<i class="ri-play-fill fs-5"></i>
+										</div>
+										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+											<i class="ri-aspect-ratio-line me-1"></i>Ver pantalla completa
+										</div>
+									</a>
 								</div>
 							`;
 						} else {
 							return `
 								<div class="col-6 mb-3">
 									<span class="small text-muted d-block mb-1">Evidencia ${index + 1} (Imagen)</span>
-									<a href="${url}" target="_blank" class="d-block border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3" style="border-style: solid !important;">
+									<a href="${url}" class="d-block border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 preview-trigger" style="border-style: solid !important;">
 										<img src="${url}" alt="Evidencia" class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
 										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
-											<i class="ri-external-link-line me-1"></i>Ver pantalla completa
+											<i class="ri-aspect-ratio-line me-1"></i>Ver pantalla completa
 										</div>
 									</a>
 								</div>
@@ -1265,106 +1407,207 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 					modalBody.innerHTML = `
 						<div class="row g-4">
-							<!-- Columna izquierda: datos del caso -->
-							<div class="col-12 col-lg-7">
-								<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;">Datos de la Solicitud</h6>
+							<!-- Columna izquierda: Datos del caso, Evidencias, Descripción e iOS Checklist -->
+							<div class="col-12 col-xl-5">
 								
-								<table class="table table-sm table-borderless mb-4" style="font-size: 0.85rem;">
-									<tbody>
-										<tr>
-											<td class="text-muted py-1" style="width: 130px;">Cliente:</td>
-											<td class="fw-bold text-dark py-1">${ticket.customer_details.name}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Identificación:</td>
-											<td class="text-dark py-1">${ticket.customer_details.ci}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Teléfono:</td>
-											<td class="text-dark py-1">${ticket.customer_details.phone}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Ciudad:</td>
-											<td class="text-dark py-1">${ticket.customer_details.city || '—'}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Departamento:</td>
-											<td class="text-dark py-1">${ticket.customer_details.department || '—'}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Serial (S/N):</td>
-											<td class="text-dark fw-bold py-1">${ticket.product_serial_number}</td>
-										</tr>
-										<tr>
-											<td class="text-muted py-1">Registrado:</td>
-											<td class="text-dark py-1">${ticket.createdAtStr}</td>
-										</tr>
-									</tbody>
-								</table>
+								<!-- DATOS DE LA SOLICITUD -->
+								<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm">
+									<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;"><i class="ri-information-line me-1.5 text-secondary"></i>Datos de la Solicitud</h6>
+									<table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+										<tbody>
+											<tr>
+												<td class="text-muted py-1" style="width: 120px;">Cliente:</td>
+												<td class="fw-bold text-dark py-1">${ticket.customer_details.name}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Identificación:</td>
+												<td class="text-dark py-1">${ticket.customer_details.ci}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Teléfono:</td>
+												<td class="text-dark py-1">${ticket.customer_details.phone}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Ciudad:</td>
+												<td class="text-dark py-1">${ticket.customer_details.city || '—'}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Departamento:</td>
+												<td class="text-dark py-1">${ticket.customer_details.department || '—'}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Serial (S/N):</td>
+												<td class="text-dark fw-bold py-1">${ticket.product_serial_number}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Registrado:</td>
+												<td class="text-dark py-1">${ticket.createdAtStr}</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
 
-								<div class="mb-4">
-									<h6 class="fw-bold text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;">Descripción del Inconveniente</h6>
+								<!-- DESCRIPCIÓN DEL INCONVENIENTE -->
+								<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm">
+									<h6 class="fw-bold text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;"><i class="ri-chat-voice-line me-1.5 text-secondary"></i>Descripción del Inconveniente</h6>
 									<div class="p-3 bg-light rounded-3 text-body border" style="font-size: 0.88rem; line-height: 1.5; white-space: pre-line;">
 										${ticket.issue_description}
 									</div>
 								</div>
 
+								<!-- RESOLUCIÓN DEL CASO (si aplica) -->
 								${resolutionHtml}
 
-							</div>
-
-							<!-- Columna derecha: evidencias adjuntas -->
-							<div class="col-12 col-lg-5">
-								<div class="mb-4">
-									<h6 class="fw-bold text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;">Evidencias Adjuntas</h6>
+								<!-- EVIDENCIAS ADJUNTAS -->
+								<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm">
+									<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;"><i class="ri-attachment-line me-1.5 text-secondary"></i>Evidencias Adjuntas</h6>
 									<div class="row g-3">
 										<div class="col-6 mb-3">
 											<span class="small text-muted d-block mb-1">Factura de Compra</span>
-											<a href="${ticket.sales_receipt_image}" target="_blank" class="d-block border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3" style="border-style: solid !important;">
+											<a href="${ticket.sales_receipt_image}" class="d-block border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 preview-trigger" style="border-style: solid !important;">
 												<img src="${ticket.sales_receipt_image}" alt="Factura" class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
 												<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
-													<i class="ri-external-link-line me-1"></i>Ver pantalla completa
+													<i class="ri-aspect-ratio-line me-1"></i>Ver pantalla completa
 												</div>
 											</a>
 										</div>
 										${evidenceHtml}
 									</div>
 								</div>
-							</div>
 
-						</div>
-
-						<!-- Historial & Comentarios: 2 chats lado a lado (Público / Interno) -->
-						<div class="cx-comments mt-4">
-							<div class="cx-comments-head">
-								<h6 class="fw-bold text-uppercase small mb-1" style="letter-spacing: 0.05em;">Historial &amp; Comentarios</h6>
-								<p class="text-muted mb-0" style="font-size: 0.78rem;">El chat <strong>Público</strong> lo ve el cliente en su seguimiento. El <strong>Interno</strong> solo lo ve el equipo.</p>
-							</div>
-							<input type="hidden" id="note-ticket-number" value="${ticket.ticket_number}" />
-							<div class="row g-3">
-								<div class="col-12 col-lg-6">
-									<div class="cx-chat cx-chat-public">
-										<div class="cx-chat-head"><i class="ri-eye-line"></i><div><span class="cx-chat-title">Público</span><span class="cx-chat-sub">Lo ve el cliente</span></div></div>
-										<div class="cx-chat-body">${publicHtml || '<p class="cx-chat-empty">Aún no hay mensajes para el cliente.</p>'}</div>
-										<form class="cx-chat-input" data-visibility="external">
-											<textarea class="form-control form-control-sm" rows="2" placeholder="Mensaje para el cliente..." required></textarea>
-											<button type="submit" class="btn btn-sm btn-info text-white" title="Enviar al cliente"><i class="ri-send-plane-fill"></i></button>
-										</form>
+								<!-- PASOS OBLIGATORIOS (Estilo iPhone Notes) -->
+								<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm" style="background-color: #f8f9fa;">
+									<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;"><i class="ri-checkbox-multiple-line me-1.5 text-secondary"></i>Pasos Obligatorios para Resolución</h6>
+									<div class="d-flex flex-column gap-3">
+										<div class="d-flex align-items-center">
+											<input class="ios-checkbox-input" type="checkbox" id="step-left-at-branch" ${ticket.step_left_at_branch ? 'checked' : ''} />
+											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-left-at-branch" style="cursor: pointer;">Producto dejado en la sucursal</label>
+										</div>
+										<div class="d-flex align-items-center">
+											<input class="ios-checkbox-input" type="checkbox" id="step-sent-to-distributor" ${ticket.step_sent_to_distributor ? 'checked' : ''} />
+											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-sent-to-distributor" style="cursor: pointer;">Producto mandado con distribuidor</label>
+										</div>
+										<div class="d-flex align-items-center">
+											<input class="ios-checkbox-input" type="checkbox" id="step-resolved" ${ticket.step_resolved ? 'checked' : ''} />
+											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-resolved" style="cursor: pointer;">Producto dado solución</label>
+										</div>
 									</div>
+									<div id="steps-error-message" class="alert alert-danger d-none small py-1.5 px-3 mt-3 mb-0"></div>
 								</div>
-								<div class="col-12 col-lg-6">
-									<div class="cx-chat cx-chat-internal">
-										<div class="cx-chat-head"><i class="ri-lock-line"></i><div><span class="cx-chat-title">Interno</span><span class="cx-chat-sub">Solo el equipo</span></div></div>
-										<div class="cx-chat-body">${internalHtml || '<p class="cx-chat-empty">Aún no hay notas internas.</p>'}</div>
-										<form class="cx-chat-input" data-visibility="internal">
-											<textarea class="form-control form-control-sm" rows="2" placeholder="Nota interna del equipo..." required></textarea>
-											<button type="submit" class="btn btn-sm btn-dark" title="Guardar nota interna"><i class="ri-send-plane-fill"></i></button>
-										</form>
+
+							</div>
+
+							<!-- Columna derecha: Historial & Comentarios (Chats) -->
+							<div class="col-12 col-xl-7">
+								<div class="cx-comments h-100 d-flex flex-column shadow-sm" style="border-top: 4px solid #212529 !important;">
+									<div class="cx-comments-head mb-3">
+										<h6 class="fw-bold text-uppercase small mb-1 text-dark" style="letter-spacing: 0.05em;"><i class="ri-message-3-line me-1.5 text-secondary"></i>Historial &amp; Comentarios</h6>
+										<p class="text-muted mb-0" style="font-size: 0.78rem;">El chat <strong>Público</strong> lo ve el cliente en su seguimiento. El <strong>Interno</strong> solo lo ve el equipo.</p>
 									</div>
+									<input type="hidden" id="note-ticket-number" value="${ticket.ticket_number}" />
+									
+									<div class="row g-3 flex-grow-1">
+										<!-- Chat Público -->
+										<div class="col-12 col-md-6 d-flex flex-column">
+											<div class="cx-chat cx-chat-public flex-grow-1 h-100">
+												<div class="cx-chat-head"><i class="ri-eye-line"></i><div><span class="cx-chat-title">Público</span><span class="cx-chat-sub">Lo ve el cliente</span></div></div>
+												<div class="cx-chat-body" style="height: 520px;">${publicHtml || '<p class="cx-chat-empty">Aún no hay mensajes para el cliente.</p>'}</div>
+												<form class="cx-chat-input mt-auto" data-visibility="external">
+													<textarea class="form-control form-control-sm" rows="2" placeholder="Mensaje para el cliente..." required></textarea>
+													<button type="submit" class="btn btn-sm btn-info text-white" title="Enviar al cliente"><i class="ri-send-plane-fill"></i></button>
+												</form>
+											</div>
+										</div>
+										<!-- Chat Interno -->
+										<div class="col-12 col-md-6 d-flex flex-column">
+											<div class="cx-chat cx-chat-internal flex-grow-1 h-100">
+												<div class="cx-chat-head"><i class="ri-lock-line"></i><div><span class="cx-chat-title">Interno</span><span class="cx-chat-sub">Solo el equipo</span></div></div>
+												<div class="cx-chat-body" style="height: 520px;">${internalHtml || '<p class="cx-chat-empty">Aún no hay notas internas.</p>'}</div>
+												<form class="cx-chat-input mt-auto" data-visibility="internal">
+													<textarea class="form-control form-control-sm" rows="2" placeholder="Nota interna del equipo..." required></textarea>
+													<button type="submit" class="btn btn-sm btn-dark" title="Guardar nota interna"><i class="ri-send-plane-fill"></i></button>
+												</form>
+											</div>
+										</div>
+									</div>
+
 								</div>
 							</div>
 						</div>
 					`;
+					const steps = ['step-left-at-branch', 'step-sent-to-distributor', 'step-resolved'];
+					steps.forEach(stepId => {
+						const checkbox = modalBody.querySelector(`#${stepId}`) as HTMLInputElement | null;
+						checkbox?.addEventListener('change', async () => {
+							const errorEl = modalBody.querySelector('#steps-error-message') as HTMLElement | null;
+							if (errorEl) errorEl.classList.add('d-none');
+
+							try {
+								const fieldName = stepId.replace(/-/g, '_');
+								const payload = {
+									ticketNumber: ticket.ticket_number,
+									[fieldName]: checkbox.checked
+								};
+								const res = await fetch('/api/tickets/update-steps', {
+									method: 'POST',
+									headers: { 'content-type': 'application/json' },
+									body: JSON.stringify(payload)
+								});
+								const data = await res.json();
+								if (!res.ok) throw new Error(data.error || 'Error al actualizar paso');
+
+								// Update ticket locally in window.ALL_TICKETS
+								// @ts-ignore
+								const tIndex = window.ALL_TICKETS.findIndex((t: any) => t.ticket_number === ticket.ticket_number);
+								// @ts-ignore
+								if (tIndex !== -1) {
+									// @ts-ignore
+									window.ALL_TICKETS[tIndex][fieldName] = checkbox.checked;
+								}
+							} catch (err: any) {
+								console.error(err);
+								if (errorEl) {
+									errorEl.textContent = 'Error: ' + err.message;
+									errorEl.classList.remove('d-none');
+								}
+								// Revert UI check state on error
+								checkbox.checked = !checkbox.checked;
+							}
+						});
+					});
+
+					// Media preview overlay click handlers
+					modalBody.querySelectorAll('.preview-trigger').forEach(trigger => {
+						trigger.addEventListener('click', (e) => {
+							e.preventDefault();
+							const url = trigger.getAttribute('href');
+							if (!url) return;
+
+							const ext = url.split('.').pop()?.toLowerCase();
+							const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
+
+							const overlay = document.getElementById('mediaPreviewOverlay');
+							const imgEl = document.getElementById('mediaPreviewImage') as HTMLImageElement | null;
+							const videoEl = document.getElementById('mediaPreviewVideo') as HTMLVideoElement | null;
+
+							if (!overlay || !imgEl || !videoEl) return;
+
+							if (isVideo) {
+								imgEl.classList.add('d-none');
+								videoEl.classList.remove('d-none');
+								videoEl.src = url;
+								videoEl.play().catch(err => console.log('Auto-play blocked or failed:', err));
+							} else {
+								videoEl.classList.add('d-none');
+								videoEl.src = '';
+								imgEl.classList.remove('d-none');
+								imgEl.src = url;
+							}
+
+							overlay.classList.remove('d-none');
+							overlay.classList.add('d-flex');
+						});
+					});
 
 					// Show modal using Bootstrap modal API
 					const modalEl = document.getElementById('ticketDetailsModal');
@@ -1409,7 +1652,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								}
 							} catch (err: any) {
 								console.error(err);
-								alert('Error: ' + err.message);
+								showToast('Error: ' + err.message, 'danger');
 								if (btn) btn.disabled = false;
 							}
 						});
@@ -1507,7 +1750,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									if (!res.ok) throw new Error(data.error || 'Error al archivar');
 									window.location.reload();
 								} catch (err: any) {
-									alert('Error: ' + err.message);
+									showToast('Error: ' + err.message, 'danger');
 								}
 							}
 						);
@@ -1533,7 +1776,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									if (!res.ok) throw new Error(data.error || 'Error al desarchivar');
 									window.location.reload();
 								} catch (err: any) {
-									alert('Error: ' + err.message);
+									showToast('Error: ' + err.message, 'danger');
 								}
 							}
 						);

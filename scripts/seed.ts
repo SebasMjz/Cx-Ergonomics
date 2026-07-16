@@ -45,24 +45,30 @@ async function seedCategories() {
 			name: 'Mesas Electricas',
 			slug: 'mesas-electricas',
 			description: 'Mesas ergonomicas electricas para estaciones de trabajo.',
+			image: `${baseUrl}/uploads/products/1024-6.png`,
 		},
 		{
 			name: 'Brazos Monitor',
 			slug: 'brazos-monitor',
 			description: 'Brazos articulados para monitores simples y dobles.',
+			image: `${baseUrl}/uploads/products/3-3-1-Photoroom-1024x1024.png`,
 		},
 		{
 			name: 'Accesorios Ergonomicos',
 			slug: 'accesorios-ergonomicos',
 			description: 'Accesorios y complementos para puestos de trabajo.',
+			image: `${baseUrl}/uploads/products/4_436194dd-03ac-4c8f-a977-ad3139f101d2-1-Photoroom-1024x1024.webp`,
 		},
 	];
 
 	const storedCategories = new Map<string, { _id: string; name: string; slug: string }>();
 
 	for (const category of categories) {
-		const existing = await CategoryModel.findOne({ slug: category.slug });
-		const document = existing ?? (await CategoryModel.create(category));
+		const document = await CategoryModel.findOneAndUpdate(
+			{ slug: category.slug },
+			category,
+			{ upsert: true, new: true }
+		);
 		storedCategories.set(category.slug, {
 			_id: document._id.toString(),
 			name: document.name,
@@ -106,7 +112,7 @@ async function seedProducts(
 	const products = [
 		{
 			name: 'Mesa Pro Lift 160',
-			description: 'Mesa electrica de doble motor con memoria de alturas.',
+			description: 'Mesa electrica de doble motor con memoria de alturas y panel digital inteligente.',
 			sku: 'MESA-PRO-LIFT-160',
 			category_id: categoryEntries.mesas._id,
 			tag_ids: [tags.get('new'), tags.get('top')].filter(Boolean),
@@ -119,77 +125,156 @@ async function seedProducts(
 			],
 			specs: { material: 'Acero / MDF', color: 'Negro', weight_capacity: '120 kg' },
 			images: [
-				`${baseUrl}/uploads/products/mesa-pro-lift-160-1.jpg`,
-				`${baseUrl}/uploads/products/mesa-pro-lift-160-2.jpg`,
+				`${baseUrl}/uploads/products/1024-6.png`,
+				`${baseUrl}/uploads/products/1500_26aaf2a2-54b8-4f47-9c41-e0d1c57b9692-Photoroom-1024x1024.png`,
 			],
 		},
 		{
 			name: 'Mesa X2 Compact',
-			description: 'Mesa electrica compacta para home office y recepcion.',
+			description: 'Mesa electrica compacta ideal para espacios reducidos y home office moderno.',
 			sku: 'MESA-X2-COMPACT',
 			category_id: categoryEntries.mesas._id,
 			tag_ids: [tags.get('promo')].filter(Boolean),
-			highlights: ['Ideal para espacios reducidos', 'Ajuste electrico'],
+			highlights: ['Ideal para espacios reducidos', 'Ajuste electrico suave', 'Tablero texturizado'],
 			spec_table: [
 				{ label: 'Material', value: 'Acero / MDF' },
 				{ label: 'Color', value: 'Blanco' },
 				{ label: 'Carga máxima', value: '80 kg' },
 			],
 			specs: { material: 'Acero / MDF', color: 'Blanco', weight_capacity: '80 kg' },
-			images: [`${baseUrl}/uploads/products/mesa-x2-compact-1.jpg`],
+			images: [
+				`${baseUrl}/uploads/products/2_1783430678000-Photoroom-1-1024x1024.png`,
+				`${baseUrl}/uploads/products/descarga-9-1024x1024.png`,
+			],
+		},
+		{
+			name: 'Mesa E-Fit Ajustable',
+			description: 'Escritorio regulable de alta performance con sensor de colisión integrado.',
+			sku: 'MESA-EFIT-AJUSTABLE',
+			category_id: categoryEntries.mesas._id,
+			tag_ids: [tags.get('new')].filter(Boolean),
+			highlights: ['Sensor anticolisión', 'Ajuste ultra silencioso', 'Estructura reforzada'],
+			spec_table: [
+				{ label: 'Material', value: 'Acero / Madera premium' },
+				{ label: 'Color', value: 'Gris Carbón' },
+				{ label: 'Carga máxima', value: '100 kg' },
+			],
+			specs: { material: 'Acero / Madera premium', color: 'Gris Carbón', weight_capacity: '100 kg' },
+			images: [
+				`${baseUrl}/uploads/products/atk-leviatan-00-59440dc59ee592e75017560510565986-1024-1024-Photoroom-1.png`,
+			],
 		},
 		{
 			name: 'Brazo Orion Duo',
-			description: 'Brazo articulado doble para dos monitores de 27 pulgadas.',
+			description: 'Brazo articulado doble de movimiento hidráulico para dos monitores de hasta 27 pulgadas.',
 			sku: 'BRAZO-ORION-DUO',
 			category_id: categoryEntries.brazos._id,
 			tag_ids: [tags.get('top')].filter(Boolean),
-			highlights: ['Soporta 2 monitores', 'Rotacion 360°', 'Gestion de cables'],
+			highlights: ['Soporta 2 monitores', 'Rotación 360°', 'Gestión de cables integrada', 'Pistón a gas'],
 			spec_table: [
-				{ label: 'Material', value: 'Aluminio' },
-				{ label: 'Color', value: 'Negro' },
+				{ label: 'Material', value: 'Aluminio de aviación' },
+				{ label: 'Color', value: 'Negro Mate' },
 				{ label: 'Carga máxima', value: '2 x 9 kg' },
 			],
-			specs: { material: 'Aluminio', color: 'Negro', weight_capacity: '2 x 9 kg' },
-			images: [`${baseUrl}/uploads/products/brazo-orion-duo-1.jpg`],
+			specs: { material: 'Aluminio de aviación', color: 'Negro Mate', weight_capacity: '2 x 9 kg' },
+			images: [
+				`${baseUrl}/uploads/products/3-3-1-Photoroom-1024x1024.png`,
+				`${baseUrl}/uploads/products/71yLlt4fVdL-Photoroom-1024x1024.png`,
+			],
 		},
 		{
 			name: 'Brazo Nova Single',
-			description: 'Brazo simple con ajuste de inclinacion y rotacion 360 grados.',
+			description: 'Soporte articulado individual con ajuste milimétrico de inclinación y rotación 360 grados.',
 			sku: 'BRAZO-NOVA-SINGLE',
 			category_id: categoryEntries.brazos._id,
 			tag_ids: [],
-			highlights: ['Ajuste de inclinacion', 'Instalacion sencilla'],
+			highlights: ['Ajuste de inclinación fluido', 'Instalación rápida mediante prensa o pasacables'],
 			spec_table: [
-				{ label: 'Material', value: 'Acero' },
-				{ label: 'Color', value: 'Gris' },
+				{ label: 'Material', value: 'Acero / Aluminio' },
+				{ label: 'Color', value: 'Gris espacial' },
 				{ label: 'Carga máxima', value: '8 kg' },
 			],
-			specs: { material: 'Acero', color: 'Gris', weight_capacity: '8 kg' },
-			images: [`${baseUrl}/uploads/products/brazo-nova-single-1.jpg`],
+			specs: { material: 'Acero / Aluminio', color: 'Gris espacial', weight_capacity: '8 kg' },
+			images: [
+				`${baseUrl}/uploads/products/4-Photoroom-1.png`,
+				`${baseUrl}/uploads/products/image-removebg-preview-29.png`,
+			],
+		},
+		{
+			name: 'Brazo Triton Ultimate',
+			description: 'El brazo de monitor definitivo para pantallas de gran formato y ultra-wide.',
+			sku: 'BRAZO-TRITON-ULTIMATE',
+			category_id: categoryEntries.brazos._id,
+			tag_ids: [tags.get('top')].filter(Boolean),
+			highlights: ['Soporta pantallas ultra-wide', 'Ajuste de tensión visible', 'Puertos USB en base'],
+			spec_table: [
+				{ label: 'Material', value: 'Aluminio reforzado' },
+				{ label: 'Color', value: 'Plata satinado' },
+				{ label: 'Carga máxima', value: '14 kg' },
+			],
+			specs: { material: 'Aluminio reforzado', color: 'Plata satinado', weight_capacity: '14 kg' },
+			images: [
+				`${baseUrl}/uploads/products/large_sJYldIKttpvjGYgb2mQHP3610FeweseHWwuWU0Vz.png`,
+			],
 		},
 		{
 			name: 'Organizador Ergo Tray',
-			description: 'Bandeja y organizador para mejorar la gestion del espacio.',
+			description: 'Bandeja organizadora colgante para optimizar el espacio debajo del escritorio.',
 			sku: 'ERGO-TRAY-001',
 			category_id: categoryEntries.accesorios._id,
 			tag_ids: [tags.get('new')].filter(Boolean),
-			highlights: ['Optimiza el espacio', 'Material resistente'],
+			highlights: ['Optimiza el espacio de trabajo', 'Material resistente anticorrosivo', 'Fácil anclaje'],
 			spec_table: [
-				{ label: 'Material', value: 'Polimero reforzado' },
+				{ label: 'Material', value: 'Polímero de alta resistencia' },
 				{ label: 'Color', value: 'Negro' },
 			],
-			specs: { material: 'Polimero reforzado', color: 'Negro' },
-			images: [`${baseUrl}/uploads/products/ergo-tray-1.jpg`],
+			specs: { material: 'Polímero de alta resistencia', color: 'Negro' },
+			images: [
+				`${baseUrl}/uploads/products/4_436194dd-03ac-4c8f-a977-ad3139f101d2-1-Photoroom-1024x1024.webp`,
+			],
+		},
+		{
+			name: 'Soporte Premium VESA',
+			description: 'Adaptador VESA universal reforzado para monitores sin orificios de fábrica.',
+			sku: 'SOPORTE-PREMIUM-VESA',
+			category_id: categoryEntries.accesorios._id,
+			tag_ids: [],
+			highlights: ['Universal para pantallas sin VESA', 'Brazos acolchados anti-rayaduras', 'Fácil armado'],
+			spec_table: [
+				{ label: 'Material', value: 'Acero estructural' },
+				{ label: 'Color', value: 'Negro satinado' },
+			],
+			specs: { material: 'Acero estructural', color: 'Negro satinado' },
+			images: [
+				`${baseUrl}/uploads/products/D_NQ_NP_688036-CBT84407241239_052025-O.webp`,
+			],
+		},
+		{
+			name: 'Bandeja de Cables Tech',
+			description: 'Canaleta metálica de gestión de cableado para mantener un setup limpio y ordenado.',
+			sku: 'BANDEJA-CABLES-TECH',
+			category_id: categoryEntries.accesorios._id,
+			tag_ids: [tags.get('promo')].filter(Boolean),
+			highlights: ['Gran capacidad de cableado', 'Instalación sin perforar', 'Diseño ventilado'],
+			spec_table: [
+				{ label: 'Material', value: 'Acero al carbono' },
+				{ label: 'Color', value: 'Negro mate' },
+			],
+			specs: { material: 'Acero al carbono', color: 'Negro mate' },
+			images: [
+				`${baseUrl}/uploads/products/X82PROHE_8c35fae2-3e7e-4ea9-b96b-dc017d40ac51-11-1024x1024.png`,
+				`${baseUrl}/uploads/products/X82PROHE_8c35fae2-3e7e-4ea9-b96b-dc017d40ac51-18-1024x1024.png`,
+			],
 		},
 	];
 
 	let order = 1;
 	for (const product of products) {
-		const existing = await ProductModel.findOne({ sku: product.sku });
-		if (!existing) {
-			await ProductModel.create({ ...product, slug: slugify(product.name), order });
-		}
+		await ProductModel.findOneAndUpdate(
+			{ sku: product.sku },
+			{ ...product, slug: slugify(product.name), order },
+			{ upsert: true, new: true }
+		);
 		order += 1;
 	}
 }

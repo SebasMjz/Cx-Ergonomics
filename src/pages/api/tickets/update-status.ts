@@ -80,6 +80,28 @@ export const POST: APIRoute = async ({ request }) => {
 		// 3. Connect to Database
 		await connectMongoose();
 
+		// Enforce mandatory steps if updating status to finalizada and not rejected
+		if (status === 'finalizada') {
+			const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
+			if (!ticket) {
+				return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
+					status: 404,
+					headers: { 'content-type': 'application/json; charset=utf-8' },
+				});
+			}
+			const resolutionType = String(body.resolutionType || '').trim();
+			if (resolutionType !== 'rechazo') {
+				if (!ticket.step_left_at_branch || !ticket.step_sent_to_distributor || !ticket.step_resolved) {
+					return new Response(
+						JSON.stringify({
+							error: 'Debes completar los 3 pasos obligatorios en los detalles del ticket (Producto dejado en sucursal, Producto mandado con distribuidor y Producto dado solución) antes de finalizar este ticket.'
+						}),
+						{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+					);
+				}
+			}
+		}
+
 		// 4. Update Ticket and Push History Entry
 		const phaseLabels = {
 			recibida: 'Nuevas solicitudes',

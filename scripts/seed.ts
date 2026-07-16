@@ -11,7 +11,7 @@ import { FaqModel } from '../src/lib/models/Faq';
 import { WallpaperModel } from '../src/lib/models/Wallpaper';
 import { SiteSettingsModel } from '../src/lib/models/SiteSettings';
 
-const baseUrl = process.env.PUBLIC_SITE_URL || 'http://localhost:4321';
+const baseUrl = '';
 
 async function seedUsers() {
 	const users = [

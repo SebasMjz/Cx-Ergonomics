@@ -346,8 +346,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 																				<span class="badge bg-secondary-subtle text-secondary rounded-pill fw-bold" style="font-size: 0.7rem; letter-spacing: 0.02em;">
 																					{ticket.ticket_number}
 																				</span>
-																				<span class="text-muted small time-ago-label" data-timestamp={ticket.updatedAt.toISOString()} style="font-size: 0.72rem;">
-																					<i class="ri-time-line me-1"></i>{timeAgo(new Date(ticket.updatedAt))}
+																				<span class="text-muted small time-ago-label" data-timestamp={ticket.createdAt.toISOString()} style="font-size: 0.72rem;">
+																					<i class="ri-time-line me-1"></i>{timeAgo(new Date(ticket.createdAt))}
 																				</span>
 																			</div>
 																			

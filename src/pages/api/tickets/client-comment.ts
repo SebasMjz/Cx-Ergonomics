@@ -43,9 +43,26 @@ export const POST: APIRoute = async ({ request }) => {
 			updated_at: new Date(),
 		};
 
+		const updateData: any = {
+			$push: { history: historyItem }
+		};
+
+		if (ticket.status === 'finalizada') {
+			updateData.$set = {
+				status: 'recibida',
+				step_resolved: false,
+			};
+			updateData.$unset = {
+				resolution_type: '',
+				resolution_main_comment: '',
+				client_solution: '',
+				supplier_solution: '',
+			};
+		}
+
 		await TicketModel.updateOne(
 			{ ticket_number: ticketNumber },
-			{ $push: { history: historyItem } }
+			updateData
 		);
 
 		return new Response(JSON.stringify({ success: true }), {

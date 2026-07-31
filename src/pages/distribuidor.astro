@@ -46,11 +46,14 @@ const intro = settings.distributor_intro || 'Lleva los productos CX a tu ciudad.
 					</div>
 
 					<div class="d-flex flex-wrap gap-2 mt-4">
-						{whatsapp && <button type="submit" class="btn-cx-primary" data-channel="whatsapp"><i class="ri-whatsapp-line"></i> Enviar por WhatsApp</button>}
+						<button type="submit" class="btn-cx-primary" data-channel="db"><i class="ri-send-plane-line"></i> Enviar Solicitud</button>
+						{whatsapp && <button type="submit" class="btn-cx-ghost" style="border-color:#198754; color:#198754;" data-channel="whatsapp"><i class="ri-whatsapp-line"></i> Enviar por WhatsApp</button>}
 						{email && <button type="submit" class="btn-cx-ghost" data-channel="email"><i class="ri-mail-line"></i> Enviar por correo</button>}
-						{!whatsapp && !email && <p class="mb-0" style="color: var(--text-muted);">Canal de contacto no configurado todavía.</p>}
 					</div>
-					<p class="dist-note">Al enviar, se abrirá WhatsApp o tu cliente de correo con el mensaje ya redactado.</p>
+					<div id="dist-success-alert" class="alert alert-success d-none mt-3" role="alert" style="background-color: rgba(25,135,84,0.1); color: #198754; border-color: rgba(25,135,84,0.2);">
+						¡Solicitud registrada con éxito! Estaremos en contacto a la brevedad.
+					</div>
+					<p class="dist-note">Al enviar, tu solicitud se guardará en nuestra base de datos. Si eliges WhatsApp o Correo, también se abrirá el canal correspondiente.</p>
 				</form>
 			</div>
 		</div>
@@ -89,15 +92,48 @@ const intro = settings.distributor_intro || 'Lleva los productos CX a tu ciudad.
 				b.addEventListener('click', () => { channel = b.getAttribute('data-channel') || 'whatsapp'; });
 			});
 
-			form.addEventListener('submit', (e) => {
+			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				if (!form.reportValidity()) return;
+
+				const payload = {
+					company: val('d-company'),
+					name: val('d-name'),
+					email: val('d-email'),
+					phone: val('d-phone'),
+					city: val('d-city'),
+					message: val('d-message'),
+				};
+
+				try {
+					const res = await fetch('/api/distributors/create', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+					if (!res.ok) {
+						const data = await res.json();
+						alert('Error al registrar la solicitud: ' + (data.error || 'Intente nuevamente.'));
+						return;
+					}
+					
+					// Show success alert
+					const alertEl = document.getElementById('dist-success-alert');
+					if (alertEl) {
+						alertEl.classList.remove('d-none');
+						setTimeout(() => alertEl.classList.add('d-none'), 5000);
+					}
+				} catch (err) {
+					console.error('Error reporting request to database:', err);
+				}
+
 				const message = buildMessage();
 				if (channel === 'whatsapp' && contact.whatsapp) {
 					window.open(`https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
-				} else if (contact.email) {
+				} else if (channel === 'email' && contact.email) {
 					window.location.href = `mailto:${contact.email}?subject=${encodeURIComponent('Solicitud de distribuidor')}&body=${encodeURIComponent(message)}`;
 				}
+				form.reset();
 			});
 		})();
 	</script>

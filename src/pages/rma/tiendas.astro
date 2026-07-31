@@ -1,0 +1,277 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { StoreModel } from '../../lib/models/Store';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+
+await connectMongoose();
+const stores = await StoreModel.find().sort({ createdAt: -1 }).lean();
+
+const storesWithIds = stores.map(s => ({
+	...s,
+	_id: s._id.toString(),
+}));
+
+const storesData = JSON.stringify(storesWithIds);
+---
+
+<AdminLayout
+	title="Tiendas y Socios Frecuentes | CX Ergonomic"
+	active="tiendas"
+	heading="Tiendas y Socios"
+	subheading="Administra clientes corporativos y tiendas aliadas. Sus códigos permiten rellenar garantías al instante."
+	session={session}
+>
+	<button slot="actions" class="btn btn-dark rounded-pill px-3 fw-semibold" type="button" id="open-create-modal-btn">
+		<i class="ri-store-2-line me-1"></i> Registrar Tienda
+	</button>
+
+	<div class="card shadow-sm mb-3">
+		<div class="card-body py-3">
+			<div class="input-group">
+				<span class="input-group-text bg-white border-end-0"><i class="ri-search-line text-muted"></i></span>
+				<input type="text" class="form-control border-start-0 ps-0" id="store-search" placeholder="Buscar por código, establecimiento, ciudad o teléfono..." />
+			</div>
+		</div>
+	</div>
+
+	<div class="card shadow-sm">
+		<div class="card-header bg-transparent py-3 fw-bold">Tiendas Registradas ({stores.length})</div>
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead class="table-light">
+						<tr>
+							<th class="px-4 py-3">Código Cliente</th>
+							<th class="py-3">Establecimiento / Cliente</th>
+							<th class="py-3">Identificación (CI / NIT)</th>
+							<th class="py-3">Teléfono</th>
+							<th class="py-3">Ciudad</th>
+							<th class="px-4 py-3 text-end">Acciones</th>
+						</tr>
+					</thead>
+					<tbody>
+						{storesWithIds.length === 0 ? (
+							<tr><td colspan="6" class="text-center text-muted py-5">Aún no hay tiendas o socios frecuentes registrados.</td></tr>
+						) : storesWithIds.map((s) => (
+							<tr class="store-row" data-id={s._id} data-search={`${s.client_code} ${s.name} ${s.city} ${s.phone}`.toLowerCase()}>
+								<td class="px-4 py-3 fw-bold text-dark"><span class="badge bg-secondary-subtle text-secondary font-monospace px-2.5 py-1.5 fs-7 border">{s.client_code}</span></td>
+								<td class="py-3 fw-bold text-dark">{s.name}</td>
+								<td class="py-3 text-muted">{s.ci}</td>
+								<td class="py-3 text-muted">{s.phone}</td>
+								<td class="py-3 text-muted">{s.city}</td>
+								<td class="px-4 py-3 text-end">
+									<div class="d-flex justify-content-end gap-1">
+										<button class="btn btn-sm btn-outline-dark rounded-pill px-2.5 edit-store-btn"><i class="ri-edit-line"></i> Editar</button>
+										<button class="btn btn-sm btn-outline-danger rounded-pill px-2.5 delete-store-btn"><i class="ri-delete-bin-line"></i> Borrar</button>
+									</div>
+								</td>
+							</tr>
+						))}
+						<tr class="no-results d-none"><td colspan="6" class="text-center text-muted py-5">No se encontraron tiendas.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal Registrar / Editar Tienda -->
+	<div class="modal fade" id="storeModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content border-0 shadow">
+				<form id="store-form">
+					<input type="hidden" id="store-id" />
+					<div class="modal-header">
+						<h5 class="modal-title fw-bold" id="storeModalTitle">Registrar Tienda</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+					</div>
+					<div class="modal-body p-4">
+						<div class="mb-3">
+							<label for="store-code" class="form-label small fw-bold text-muted text-uppercase mb-1">Código Cliente <span class="text-danger">*</span></label>
+							<input type="text" class="form-control font-monospace" id="store-code" required placeholder="Ej. TIENDA-C101" style="letter-spacing: 0.05em;" />
+							<div class="form-text small text-muted">Debe ser único. Servirá para autocompletar en el formulario.</div>
+						</div>
+						<div class="mb-3">
+							<label for="store-name" class="form-label small fw-bold text-muted text-uppercase mb-1">Establecimiento / Nombre del Socio <span class="text-danger">*</span></label>
+							<input type="text" class="form-control" id="store-name" required placeholder="Ej. Tienda Central Sopocachi" />
+						</div>
+						<div class="mb-3">
+							<label for="store-ci" class="form-label small fw-bold text-muted text-uppercase mb-1">Identificación (CI / NIT) <span class="text-danger">*</span></label>
+							<input type="text" class="form-control" id="store-ci" required placeholder="Ej. NIT 12938120" />
+						</div>
+						<div class="row g-3 mb-0">
+							<div class="col-6">
+								<label for="store-phone" class="form-label small fw-bold text-muted text-uppercase mb-1">Teléfono <span class="text-danger">*</span></label>
+								<input type="tel" class="form-control" id="store-phone" required placeholder="Ej. 70123456" />
+							</div>
+							<div class="col-6">
+								<label for="store-city" class="form-label small fw-bold text-muted text-uppercase mb-1">Ciudad <span class="text-danger">*</span></label>
+								<input type="text" class="form-control" id="store-city" required placeholder="Ej. La Paz" />
+							</div>
+						</div>
+						<div class="alert alert-danger d-none mt-3 py-2 small" id="modal-error-alert"></div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+						<button type="submit" class="btn btn-dark rounded-pill px-4" id="save-store-btn">Guardar Tienda</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal confirmar eliminación -->
+	<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold">Confirmar Eliminación</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body py-3" style="font-size: 0.9rem;">
+					¿Estás seguro de que deseas eliminar permanentemente esta tienda asociada?
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-danger rounded-pill px-3" id="confirm-delete-submit-btn">Eliminar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script set:html={`window.CX_STORES = ${storesData};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const stores = window.CX_STORES || [];
+			const byId = new Map(stores.map(s => [s._id, s]));
+
+			const modalEl = document.getElementById('storeModal');
+			const form = document.getElementById('store-form');
+			const saveBtn = document.getElementById('save-store-btn');
+			const errorAlert = document.getElementById('modal-error-alert');
+
+			// Register store click
+			document.getElementById('open-create-modal-btn')?.addEventListener('click', () => {
+				form.reset();
+				document.getElementById('store-id').value = '';
+				document.getElementById('storeModalTitle').textContent = 'Registrar Tienda';
+				errorAlert.classList.add('d-none');
+				bs().Modal.getOrCreateInstance(modalEl).show();
+			});
+
+			// Edit store click
+			document.querySelectorAll('.edit-store-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const id = btn.closest('.store-row').getAttribute('data-id');
+					const s = byId.get(id);
+					if (!s) return;
+
+					document.getElementById('store-id').value = s._id;
+					document.getElementById('store-code').value = s.client_code;
+					document.getElementById('store-name').value = s.name;
+					document.getElementById('store-ci').value = s.ci;
+					document.getElementById('store-phone').value = s.phone;
+					document.getElementById('store-city').value = s.city;
+					
+					document.getElementById('storeModalTitle').textContent = 'Editar Tienda';
+					errorAlert.classList.add('d-none');
+					bs().Modal.getOrCreateInstance(modalEl).show();
+				});
+			});
+
+			// Save Form (Create / Update)
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				errorAlert.classList.add('d-none');
+				
+				const id = document.getElementById('store-id').value;
+				const payload = {
+					id,
+					client_code: document.getElementById('store-code').value,
+					name: document.getElementById('store-name').value,
+					ci: document.getElementById('store-ci').value,
+					phone: document.getElementById('store-phone').value,
+					city: document.getElementById('store-city').value,
+				};
+
+				const url = id ? '/api/stores/update' : '/api/stores/create';
+				
+				try {
+					saveBtn.disabled = true;
+					saveBtn.textContent = 'Guardando...';
+
+					const res = await fetch(url, {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al guardar la tienda');
+
+					window.location.reload();
+				} catch (err) {
+					saveBtn.disabled = false;
+					saveBtn.textContent = 'Guardar Tienda';
+					errorAlert.textContent = err.message;
+					errorAlert.classList.remove('d-none');
+				}
+			});
+
+			// Delete store
+			let idToDelete = null;
+			const deleteModalEl = document.getElementById('confirmDeleteModal');
+			const confirmDeleteBtn = document.getElementById('confirm-delete-submit-btn');
+
+			document.querySelectorAll('.delete-store-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					idToDelete = btn.closest('.store-row').getAttribute('data-id');
+					bs().Modal.getOrCreateInstance(deleteModalEl).show();
+				});
+			});
+
+			confirmDeleteBtn.addEventListener('click', async () => {
+				if (!idToDelete) return;
+				try {
+					confirmDeleteBtn.disabled = true;
+					confirmDeleteBtn.textContent = 'Borrando...';
+
+					const res = await fetch('/api/stores/delete', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ id: idToDelete })
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+
+					window.location.reload();
+				} catch (err) {
+					alert('Error: ' + err.message);
+					confirmDeleteBtn.disabled = false;
+					confirmDeleteBtn.textContent = 'Eliminar';
+					bs().Modal.getInstance(deleteModalEl).hide();
+				}
+			});
+
+			// Search filter
+			const search = document.getElementById('store-search');
+			const rows = Array.from(document.querySelectorAll('.store-row'));
+			const noRes = document.querySelector('.no-results');
+
+			search.addEventListener('input', () => {
+				const q = search.value.toLowerCase().trim();
+				let visible = 0;
+				rows.forEach((r) => {
+					const ok = (r.getAttribute('data-search') || '').includes(q);
+					r.style.display = ok ? '' : 'none';
+					if (ok) visible++;
+				});
+				noRes.classList.toggle('d-none', visible !== 0 || rows.length === 0);
+			});
+		})();
+	</script>
+</AdminLayout>

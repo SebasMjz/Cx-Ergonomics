@@ -10,7 +10,9 @@ const { active = '', session } = Astro.props;
 
 const operativo = [
 	{ key: 'dashboard', href: '/rma', icon: 'ri-dashboard-line', label: 'Dashboard RMA' },
-	{ key: 'clientes', href: '/rma/clientes', icon: 'ri-contacts-book-line', label: 'Clientes' },
+	{ key: 'clientes', href: '/rma/clientes', icon: 'ri-contacts-book-line', label: 'Historial Clientes' },
+	{ key: 'tiendas', href: '/rma/tiendas', icon: 'ri-store-2-line', label: 'Tiendas y Socios' },
+	{ key: 'distribuidores', href: '/rma/distribuidores', icon: 'ri-user-shared-line', label: 'Prospectos Distribuidor' },
 	{ key: 'usuarios', href: '/rma/usuarios', icon: 'ri-user-settings-line', label: 'Gestión de Usuarios', adminOnly: true },
 	{ key: 'new', href: '/rma/new?from=dashboard', icon: 'ri-file-add-line', label: 'Registrar Solicitud' },
 ];
@@ -39,14 +41,8 @@ const catalogo = [
 				class="brand-image normal-logo"
 				style="max-height: 32px;"
 			/>
-			<span class="mini-logo fw-black text-dark text-uppercase fs-4 d-none" style="font-family: 'Outfit', sans-serif; font-weight: 900; letter-spacing: -0.05em;">CX</span>
 			<span class="brand-name mb-0 opacity-80 ms-2 text-body fw-bold">CX Ergonomic</span>
 		</a>
-		<div class="toggle-mini ms-auto">
-			<button id="toggle-mini-button" class="btn btn-icon bg-body border-0" title="Minimizar barra">
-				<i class="ri-arrow-left-double-line opacity-75 fs-4"></i>
-			</button>
-		</div>
 	</div>
 
 	<div class="sidebar-content" data-simplebar>

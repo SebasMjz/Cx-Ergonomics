@@ -1,6 +1,6 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
 
-export type TicketStatus = 'recibida' | 'en proceso' | 'finalizada';
+export type TicketStatus = 'recibida' | 'en proceso' | 'en revision' | 'finalizada' | 'rechazada';
 
 export type ResolutionType = 'rechazo' | 'descuento' | 'reponer';
 
@@ -9,7 +9,7 @@ export interface ICustomerDetails {
 	ci: string;
 	phone: string;
 	city: string;
-	department: string;
+	department?: string;
 }
 
 export interface ITicketHistoryItem {
@@ -33,6 +33,10 @@ export interface ITicket extends Document {
 	ticket_number: string;
 	customer_details: ICustomerDetails;
 	product_serial_number: string;
+	product_name?: string;
+	product_brand?: string;
+	store_manager_name?: string;
+	store_manager_phone?: string;
 	sales_receipt_image: string;
 	issue_description: string;
 	evidence_video: string;
@@ -45,6 +49,8 @@ export interface ITicket extends Document {
 	client_solution?: string;
 	// Solución que nos dio el proveedor (puede registrarse antes o después que la del cliente).
 	supplier_solution?: string;
+	client_transaction_number?: string;
+	supplier_transaction_number?: string;
 	step_left_at_branch?: boolean;
 	step_sent_to_distributor?: boolean;
 	step_resolved?: boolean;
@@ -61,7 +67,7 @@ const CustomerDetailsSchema = new Schema<ICustomerDetails>(
 		ci: { type: String, required: true, trim: true },
 		phone: { type: String, required: true, trim: true },
 		city: { type: String, required: true, trim: true },
-		department: { type: String, required: true, trim: true },
+		department: { type: String, trim: true },
 	},
 	{ _id: false }
 );
@@ -70,7 +76,7 @@ const TicketHistorySchema = new Schema<ITicketHistoryItem>(
 	{
 		status: {
 			type: String,
-			enum: ['recibida', 'en proceso', 'finalizada'],
+			enum: ['recibida', 'en proceso', 'en revision', 'finalizada', 'rechazada'],
 			required: true,
 		},
 		note: { type: String },
@@ -89,12 +95,16 @@ const TicketSchema = new Schema<ITicket>(
 		ticket_number: { type: String, required: true, unique: true, trim: true },
 		customer_details: { type: CustomerDetailsSchema, required: true },
 		product_serial_number: { type: String, required: true, trim: true },
+		product_name: { type: String, trim: true },
+		product_brand: { type: String, trim: true },
+		store_manager_name: { type: String, trim: true },
+		store_manager_phone: { type: String, trim: true },
 		sales_receipt_image: { type: String, required: true },
 		issue_description: { type: String, required: true },
 		evidence_video: { type: String, required: true },
 		status: {
 			type: String,
-			enum: ['recibida', 'en proceso', 'finalizada'],
+			enum: ['recibida', 'en proceso', 'en revision', 'finalizada', 'rechazada'],
 			default: 'recibida',
 		},
 		resolution_type: {
@@ -104,6 +114,8 @@ const TicketSchema = new Schema<ITicket>(
 		resolution_main_comment: { type: String, trim: true },
 		client_solution: { type: String, trim: true },
 		supplier_solution: { type: String, trim: true },
+		client_transaction_number: { type: String, trim: true },
+		supplier_transaction_number: { type: String, trim: true },
 		step_left_at_branch: { type: Boolean, default: false },
 		step_sent_to_distributor: { type: Boolean, default: false },
 		step_resolved: { type: Boolean, default: false },

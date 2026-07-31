@@ -1,4 +1,12 @@
 import mongoose from 'mongoose';
+import dns from 'node:dns';
+
+// Force using public DNS servers (Cloudflare and Google) to avoid local DNS SRV resolution issues
+try {
+	dns.setServers(['1.1.1.1', '8.8.8.8']);
+} catch (e) {
+	console.warn('Failed to set custom DNS servers:', e);
+}
 
 const mongoUri = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MONGODB_URI : undefined) ?? process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017';
 const mongoDbName = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MONGODB_DB : undefined) ?? process.env.MONGODB_DB ?? 'cx-importations';

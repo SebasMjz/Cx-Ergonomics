@@ -103,7 +103,42 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 
 						<form id="public-rma-form" class="needs-validation" novalidate>
 							<!-- Client Information -->
-							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">1. Datos del Cliente</h5>
+							<div class="d-flex justify-content-between align-items-center mb-3">
+								<h5 class="h6 mb-0 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">1. Datos del Cliente</h5>
+								<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-2.5" id="toggle-store-code-btn" style="font-size: 0.75rem;">
+									<i class="ri-store-2-line me-1"></i>¿Soy una Tienda / Socio?
+								</button>
+							</div>
+
+							<!-- Collapsible Store Code Search block -->
+							<div id="store-code-container" class="d-none bg-light p-3 rounded border mb-4">
+								<label for="storeClientCode" class="form-label text-muted small fw-bold">Código de Cliente (Tienda / Socio)</label>
+								<div class="input-group">
+									<span class="input-group-text bg-white"><i class="ri-key-2-line text-muted"></i></span>
+									<input type="text" class="form-control" id="storeClientCode" placeholder="Ej. TIENDA-C102" />
+									<button class="btn btn-dark fw-semibold" type="button" id="search-store-btn">
+										<i class="ri-search-line me-1"></i>Buscar
+									</button>
+								</div>
+								<div class="form-text small text-muted">Ingresa tu código de tienda frecuente para autocompletar tus datos.</div>
+								<div id="store-search-alert" class="alert d-none py-2 px-3 mt-2 mb-0 small" role="alert"></div>
+							</div>
+							
+							<!-- Store Manager details (Optional, shown only when store verified) -->
+							<div id="store-manager-container" class="d-none bg-light-subtle p-3 rounded border mb-4">
+								<h6 class="fw-bold text-dark mb-2" style="font-size: 0.85rem;"><i class="ri-user-settings-line me-1"></i>Encargado / Responsable (Opcional)</h6>
+								<div class="row g-2">
+									<div class="col-12 col-sm-6">
+										<label for="storeManagerName" class="form-label text-muted small fw-bold">Nombre del Encargado</label>
+										<input type="text" class="form-control" id="storeManagerName" placeholder="Ej. Carlos Mendoza" />
+									</div>
+									<div class="col-12 col-sm-6">
+										<label for="storeManagerPhone" class="form-label text-muted small fw-bold">Teléfono del Encargado</label>
+										<input type="tel" class="form-control" id="storeManagerPhone" placeholder="Ej. 70512345" />
+									</div>
+								</div>
+								<div class="form-text small text-muted" style="font-size: 0.72rem;">Si se registra un encargado, las notificaciones de WhatsApp se mandaran a su número.</div>
+							</div>
 							
 							<div class="row g-3 mb-4">
 								<div class="col-12">
@@ -121,23 +156,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 									<input type="tel" class="form-control" id="customerPhone" required placeholder="Ej. 0414-1234567" />
 								</div>
 
-								<div class="col-12 col-sm-6">
-									<label for="customerDepartment" class="form-label text-muted small fw-bold">Departamento</label>
-									<select class="form-select" id="customerDepartment" required>
-										<option value="" selected disabled>Selecciona tu departamento</option>
-										<option value="La Paz">La Paz</option>
-										<option value="Santa Cruz">Santa Cruz</option>
-										<option value="Cochabamba">Cochabamba</option>
-										<option value="Oruro">Oruro</option>
-										<option value="Potosí">Potosí</option>
-										<option value="Chuquisaca">Chuquisaca</option>
-										<option value="Tarija">Tarija</option>
-										<option value="Beni">Beni</option>
-										<option value="Pando">Pando</option>
-									</select>
-								</div>
-
-								<div class="col-12 col-sm-6">
+								<div class="col-12">
 									<label for="customerCity" class="form-label text-muted small fw-bold">Ciudad</label>
 									<input type="text" class="form-control" id="customerCity" required placeholder="Ej. El Alto" />
 								</div>
@@ -147,13 +166,89 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">2. Información del Producto</h5>
 							
 							<div class="row g-3 mb-4">
-								<div class="col-12">
+								<div class="col-12 col-md-6">
+									<label for="productName" class="form-label text-muted small fw-bold">Nombre del Producto</label>
+									<input type="text" class="form-control" id="productName" required placeholder="Ej. Escritorio Eléctrico Premium" />
+								</div>
+
+								<div class="col-12 col-md-6">
 									<label for="productSerialNumber" class="form-label text-muted small fw-bold">Número de Serial (S/N)</label>
 									<input type="text" class="form-control" id="productSerialNumber" required placeholder="Ej. MESA-PRO-2026-001" />
-									<div class="form-text small text-muted">Lo encontrarás en la etiqueta adhesiva debajo de tu mesa o brazo.</div>
+									<div class="form-text small text-muted" style="font-size: 0.75rem;">Ubicado en la etiqueta adhesiva del equipo.</div>
 								</div>
-								
-								<div class="col-12">
+
+								<div class="col-12 my-2">
+									<label class="form-label text-muted small fw-bold d-block mb-2">Marca del Producto <span class="text-danger">*</span></label>
+									<input type="hidden" id="productBrand" required />
+									
+									<div class="row row-cols-2 row-cols-sm-4 g-3" id="brand-selection-grid">
+										<!-- Marca 1 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="CX Ergonomics">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">CX</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">CX Ergonomics</span>
+											</div>
+										</div>
+										<!-- Marca 2 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="Humanscale">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">HS</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">Humanscale</span>
+											</div>
+										</div>
+										<!-- Marca 3 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="Steelcase">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">SC</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">Steelcase</span>
+											</div>
+										</div>
+										<!-- Marca 4 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="Herman Miller">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">HM</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">Herman Miller</span>
+											</div>
+										</div>
+										<!-- Marca 5 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="Ergotron">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">ET</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">Ergotron</span>
+											</div>
+										</div>
+										<!-- Marca 6 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="FlexiSpot">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">FS</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">FlexiSpot</span>
+											</div>
+										</div>
+										<!-- Marca 7 -->
+										<div class="col">
+											<div class="card h-100 border text-center p-3 brand-select-card transition" style="cursor: pointer;" data-brand="Cougar">
+												<div class="brand-logo-placeholder mb-2 d-flex align-items-center justify-content-center mx-auto rounded bg-light" style="width: 60px; height: 60px;">
+													<span class="fw-black text-secondary fs-4">CG</span>
+												</div>
+												<span class="small fw-bold text-dark d-block">Cougar</span>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div class="col-12 mt-3">
 									<label for="issueDescription" class="form-label text-muted small fw-bold">Descripción del Problema</label>
 									<textarea class="form-control" id="issueDescription" rows="4" required placeholder="Describe detalladamente qué falla presenta tu equipo..."></textarea>
 								</div>
@@ -245,6 +340,30 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 		</div>
 
 		<style>
+			.brand-select-card {
+				border-width: 1.5px !important;
+				border-color: rgba(0,0,0,0.08) !important;
+			}
+			.brand-select-card:hover {
+				border-color: #212529 !important;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+			}
+			.brand-select-card.selected {
+				border-color: #212529 !important;
+				background-color: #f8f9fa !important;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+				position: relative;
+			}
+			.brand-select-card.selected::after {
+				content: '\eb7a'; /* ri-checkbox-circle-fill */
+				font-family: 'remixicon' !important;
+				position: absolute;
+				top: 5px;
+				right: 5px;
+				color: #212529;
+				font-size: 1.1rem;
+			}
+
 			:root, [data-bs-theme='light'] {
 				--bs-primary: #212529;
 				--bs-primary-rgb: 33, 37, 41;
@@ -374,6 +493,89 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 
 		<script>
 			document.addEventListener('DOMContentLoaded', () => {
+				// ---- lookup store client code ----
+				const toggleStoreBtn = document.getElementById('toggle-store-code-btn');
+				const storeContainer = document.getElementById('store-code-container');
+				const searchStoreBtn = document.getElementById('search-store-btn');
+				const storeCodeInput = document.getElementById('storeClientCode') as HTMLInputElement | null;
+				const storeAlert = document.getElementById('store-search-alert');
+
+				toggleStoreBtn?.addEventListener('click', () => {
+					storeContainer?.classList.toggle('d-none');
+					if (storeContainer?.classList.contains('d-none')) {
+						// Hide manager container
+						document.getElementById('store-manager-container')?.classList.add('d-none');
+						const managerName = document.getElementById('storeManagerName') as HTMLInputElement | null;
+						const managerPhone = document.getElementById('storeManagerPhone') as HTMLInputElement | null;
+						if (managerName) managerName.value = '';
+						if (managerPhone) managerPhone.value = '';
+						// Unlock inputs if hidden
+						['customerName', 'customerCi', 'customerPhone', 'customerCity'].forEach(id => {
+							const input = document.getElementById(id) as HTMLInputElement | null;
+							if (input) input.readOnly = false;
+						});
+					}
+				});
+
+				searchStoreBtn?.addEventListener('click', async () => {
+					if (!storeCodeInput || !storeCodeInput.value.trim()) {
+						if (storeAlert) {
+							storeAlert.className = 'alert alert-warning py-2 px-3 mt-2 mb-0 small';
+							storeAlert.textContent = 'Por favor ingresa un código de cliente.';
+							storeAlert.classList.remove('d-none');
+						}
+						return;
+					}
+
+					if (storeAlert) {
+						storeAlert.className = 'alert alert-info py-2 px-3 mt-2 mb-0 small';
+						storeAlert.textContent = 'Buscando tienda...';
+						storeAlert.classList.remove('d-none');
+					}
+
+					try {
+						const res = await fetch(`/api/stores/get?code=${encodeURIComponent(storeCodeInput.value.trim())}`);
+						const data = await res.json();
+
+						if (!res.ok) {
+							if (storeAlert) {
+								storeAlert.className = 'alert alert-danger py-2 px-3 mt-2 mb-0 small';
+								storeAlert.textContent = data.error || 'Código de cliente no encontrado.';
+							}
+							return;
+						}
+
+						// Store found: autocomplete fields
+						const store = data.store;
+						// Show store manager details panel
+						document.getElementById('store-manager-container')?.classList.remove('d-none');
+						const fields = {
+							customerName: store.name,
+							customerCi: store.ci,
+							customerPhone: store.phone,
+							customerCity: store.city,
+						};
+
+						Object.entries(fields).forEach(([id, val]) => {
+							const input = document.getElementById(id) as HTMLInputElement | null;
+							if (input) {
+								input.value = val;
+								input.readOnly = true; // Lock the fields to prevent accidental edits
+							}
+						});
+
+						if (storeAlert) {
+							storeAlert.className = 'alert alert-success py-2 px-3 mt-2 mb-0 small';
+							storeAlert.innerHTML = `<strong>¡Tienda verificada!</strong> ${store.name} (${store.city}). Datos autocompletados.`;
+						}
+					} catch (err) {
+						console.error('Error fetching store info:', err);
+						if (storeAlert) {
+							storeAlert.className = 'alert alert-danger py-2 px-3 mt-2 mb-0 small';
+							storeAlert.textContent = 'Error de conexión al buscar la tienda.';
+						}
+					}
+				});
 				// ---- Gate de selección y políticas de garantía ----
 				const selectionContainer = document.querySelector<HTMLElement>('#selection-container');
 				const policyContainer = document.querySelector<HTMLElement>('#policy-container');
@@ -617,13 +819,41 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 					evidenceInput.value = ''; // Reset input selection
 				});
 
+				// Handle Brand Selection
+				const brandCards = document.querySelectorAll('.brand-select-card');
+				const brandInput = document.getElementById('productBrand') as HTMLInputElement | null;
+				const brandGrid = document.getElementById('brand-selection-grid');
+
+				brandCards.forEach(card => {
+					card.addEventListener('click', () => {
+						brandCards.forEach(c => c.classList.remove('selected'));
+						card.classList.add('selected');
+						
+						const brandVal = card.getAttribute('data-brand') || '';
+						if (brandInput) {
+							brandInput.value = brandVal;
+						}
+						brandGrid?.classList.remove('border', 'border-danger', 'rounded', 'p-2');
+					});
+				});
+
 				// Handle Form submission
 				form?.addEventListener('submit', async (event) => {
 					event.preventDefault();
 					errorAlert?.classList.add('d-none');
 
-					if (!form.checkValidity()) {
+					// Custom validation for brand input
+					const hasBrand = brandInput && brandInput.value;
+					if (!hasBrand) {
+						brandGrid?.classList.add('border', 'border-danger', 'rounded', 'p-2');
+					}
+
+					if (!form.checkValidity() || !hasBrand) {
 						form.classList.add('was-validated');
+						if (errorAlert) {
+							errorAlert.textContent = 'Por favor, completa todos los campos requeridos, incluyendo la marca del producto.';
+							errorAlert.classList.remove('d-none');
+						}
 						return;
 					}
 
@@ -654,8 +884,11 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							customerCi: String(document.querySelector<HTMLInputElement>('#customerCi')?.value ?? ''),
 							customerPhone: String(document.querySelector<HTMLInputElement>('#customerPhone')?.value ?? ''),
 							customerCity: String(document.querySelector<HTMLInputElement>('#customerCity')?.value ?? ''),
-							customerDepartment: String(document.querySelector<HTMLSelectElement>('#customerDepartment')?.value ?? ''),
 							productSerialNumber: String(document.querySelector<HTMLInputElement>('#productSerialNumber')?.value ?? ''),
+							productName: String(document.querySelector<HTMLInputElement>('#productName')?.value ?? ''),
+							productBrand: brandInput?.value ?? '',
+							storeManagerName: String(document.getElementById('storeManagerName')?.value ?? ''),
+							storeManagerPhone: String(document.getElementById('storeManagerPhone')?.value ?? ''),
 							issueDescription: String(document.querySelector<HTMLTextAreaElement>('#issueDescription')?.value ?? ''),
 							salesReceiptImage: receiptUrl,
 							evidenceVideo: evidenceUrls.join(','), // Send as comma-separated list

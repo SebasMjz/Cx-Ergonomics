@@ -1,0 +1,236 @@
+---
+import AdminLayout from '../../components/AdminLayout.astro';
+import { connectMongoose } from '../../lib/mongo';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+import { DistributorRequestModel } from '../../lib/models/DistributorRequest';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+if (!session) return Astro.redirect('/login');
+
+await connectMongoose();
+const requests = await DistributorRequestModel.find().sort({ createdAt: -1 }).lean();
+
+const fmt = (d: Date) =>
+	new Intl.DateTimeFormat('es-VE', {
+		day: '2-digit',
+		month: 'short',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	}).format(new Date(d));
+
+const requestsWithDates = requests.map(r => ({
+	...r,
+	_id: r._id.toString(),
+	createdAtStr: fmt(r.createdAt),
+}));
+
+const requestsData = JSON.stringify(requestsWithDates);
+---
+
+<AdminLayout
+	title="Solicitudes de Distribuidor | CX Ergonomic"
+	active="distribuidores"
+	heading="Solicitudes de Distribuidor"
+	subheading="Listado de prospectos interesados en distribuir productos CX."
+	session={session}
+>
+	<div class="card shadow-sm mb-3">
+		<div class="card-body py-3">
+			<div class="input-group">
+				<span class="input-group-text bg-white border-end-0"><i class="ri-search-line text-muted"></i></span>
+				<input type="text" class="form-control border-start-0 ps-0" id="dist-search" placeholder="Buscar por empresa, contacto, correo o ciudad..." />
+			</div>
+		</div>
+	</div>
+
+	<div class="card shadow-sm">
+		<div class="card-header bg-transparent py-3 fw-bold">Solicitudes Recibidas ({requests.length})</div>
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-hover align-middle mb-0">
+					<thead class="table-light">
+						<tr>
+							<th class="px-4 py-3">Empresa</th>
+							<th class="py-3">Contacto</th>
+							<th class="py-3">Correo</th>
+							<th class="py-3">Teléfono</th>
+							<th class="py-3">Ciudad</th>
+							<th class="py-3">Fecha</th>
+							<th class="px-4 py-3 text-end">Acciones</th>
+						</tr>
+					</thead>
+					<tbody>
+						{requestsWithDates.length === 0 ? (
+							<tr><td colspan="7" class="text-center text-muted py-5">Aún no hay solicitudes de distribuidores registradas.</td></tr>
+						) : requestsWithDates.map((r) => (
+							<tr class="request-row" data-id={r._id} data-search={`${r.company} ${r.name} ${r.email} ${r.city}`.toLowerCase()}>
+								<td class="px-4 py-3 fw-bold text-dark">{r.company}</td>
+								<td class="py-3 text-muted">{r.name}</td>
+								<td class="py-3 text-muted">{r.email}</td>
+								<td class="py-3 text-muted">{r.phone}</td>
+								<td class="py-3 text-muted">{r.city}</td>
+								<td class="py-3 text-muted" style="font-size: 0.85rem;">{r.createdAtStr}</td>
+								<td class="px-4 py-3 text-end">
+									<div class="d-flex justify-content-end gap-1">
+										<button class="btn btn-sm btn-outline-dark rounded-pill px-2.5 view-request-btn"><i class="ri-eye-line"></i> Ver</button>
+										<button class="btn btn-sm btn-outline-danger rounded-pill px-2.5 delete-request-btn"><i class="ri-delete-bin-line"></i> Borrar</button>
+									</div>
+								</td>
+							</tr>
+						))}
+						<tr class="no-results d-none"><td colspan="7" class="text-center text-muted py-5">No se encontraron solicitudes.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal detalles de solicitud -->
+	<div class="modal fade" id="requestModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered modal-md">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold">Detalle de Prospecto</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body p-4">
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted text-uppercase mb-1">Empresa / Negocio</label>
+						<div class="fw-bold text-dark" id="detail-company">—</div>
+					</div>
+					<div class="row mb-3">
+						<div class="col-6">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Contacto</label>
+							<div class="text-dark" id="detail-name">—</div>
+						</div>
+						<div class="col-6">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Ciudad / Región</label>
+							<div class="text-dark" id="detail-city">—</div>
+						</div>
+					</div>
+					<div class="row mb-3">
+						<div class="col-6">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Correo electrónico</label>
+							<div class="text-dark" id="detail-email">—</div>
+						</div>
+						<div class="col-6">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Teléfono</label>
+							<div class="text-dark" id="detail-phone">—</div>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted text-uppercase mb-1">Sobre el negocio (Mensaje)</label>
+						<div class="p-3 bg-light border rounded rounded-3 text-dark style-pre-line" style="white-space: pre-line; font-size: 0.9rem;" id="detail-message">—</div>
+					</div>
+					<div class="mb-0">
+						<label class="form-label small fw-bold text-muted text-uppercase mb-1">Fecha de envío</label>
+						<div class="text-muted small" id="detail-date">—</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cerrar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modal confirmar eliminación -->
+	<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+			<div class="modal-content border-0 shadow">
+				<div class="modal-header">
+					<h5 class="modal-title fw-bold">Confirmar Eliminación</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body py-3" style="font-size: 0.9rem;">
+					¿Estás seguro de que deseas eliminar permanentemente esta solicitud de distribuidor?
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+					<button type="button" class="btn btn-danger rounded-pill px-3" id="confirm-delete-submit-btn">Eliminar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script set:html={`window.CX_REQUESTS = ${requestsData};`} is:inline></script>
+	<script is:inline>
+		(function () {
+			const bs = () => window.bootstrap;
+			const requests = window.CX_REQUESTS || [];
+			const byId = new Map(requests.map(r => [r._id, r]));
+
+			function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+
+			// View request details
+			document.querySelectorAll('.view-request-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const id = btn.closest('.request-row').getAttribute('data-id');
+					const r = byId.get(id);
+					if (!r) return;
+
+					document.getElementById('detail-company').textContent = r.company;
+					document.getElementById('detail-name').textContent = r.name;
+					document.getElementById('detail-city').textContent = r.city;
+					document.getElementById('detail-email').textContent = r.email;
+					document.getElementById('detail-phone').textContent = r.phone;
+					document.getElementById('detail-message').textContent = r.message || 'Sin mensaje adicional.';
+					document.getElementById('detail-date').textContent = r.createdAtStr;
+
+					bs().Modal.getOrCreateInstance(document.getElementById('requestModal')).show();
+				});
+			});
+
+			// Delete request
+			let idToDelete = null;
+			const confirmModal = document.getElementById('confirmDeleteModal');
+			const confirmBtn = document.getElementById('confirm-delete-submit-btn');
+
+			document.querySelectorAll('.delete-request-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					idToDelete = btn.closest('.request-row').getAttribute('data-id');
+					bs().Modal.getOrCreateInstance(confirmModal).show();
+				});
+			});
+
+			confirmBtn.addEventListener('click', async () => {
+				if (!idToDelete) return;
+				try {
+					confirmBtn.disabled = true;
+					confirmBtn.textContent = 'Borrando...';
+					const res = await fetch('/api/distributors/delete', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ id: idToDelete })
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+					window.location.reload();
+				} catch (err) {
+					alert('Error: ' + err.message);
+					confirmBtn.disabled = false;
+					confirmBtn.textContent = 'Eliminar';
+					bs().Modal.getInstance(confirmModal).hide();
+				}
+			});
+
+			// Search filter
+			const search = document.getElementById('dist-search');
+			const rows = Array.from(document.querySelectorAll('.request-row'));
+			const noRes = document.querySelector('.no-results');
+
+			search.addEventListener('input', () => {
+				const q = search.value.toLowerCase().trim();
+				let visible = 0;
+				rows.forEach((r) => {
+					const ok = (r.getAttribute('data-search') || '').includes(q);
+					r.style.display = ok ? '' : 'none';
+					if (ok) visible++;
+				});
+				noRes.classList.toggle('d-none', visible !== 0 || rows.length === 0);
+			});
+		})();
+	</script>
+</AdminLayout>

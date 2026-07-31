@@ -12,6 +12,9 @@ type TrackResult = {
 	status: TicketStatus;
 	isRejected: boolean;
 	customerName: string;
+	productName?: string;
+	productBrand?: string;
+	productSerialNumber: string;
 	createdAtStr: string;
 	updatedAtStr: string;
 	comments: Array<{ note: string; dateStr: string; fromClient: boolean; author: string; attachments: string[] }>;
@@ -35,8 +38,11 @@ if (ticketParam) {
 		result = {
 			ticket_number: t.ticket_number,
 			status: t.status,
-			isRejected: t.status === 'finalizada' && t.resolution_type === 'rechazo',
+			isRejected: t.status === 'rechazada' || (t.status === 'finalizada' && t.resolution_type === 'rechazo'),
 			customerName: (t.customer_details?.name || '').split(' ')[0] || 'Cliente',
+			productName: t.product_name,
+			productBrand: t.product_brand,
+			productSerialNumber: t.product_serial_number,
 			createdAtStr: fmt(t.createdAt),
 			updatedAtStr: fmt(t.updatedAt),
 			comments: externals.map((h: any) => ({
@@ -54,9 +60,14 @@ if (ticketParam) {
 const steps = [
 	{ key: 'recibida', label: 'Nueva solicitud', icon: 'ri-inbox-line' },
 	{ key: 'en proceso', label: 'En proceso', icon: 'ri-loader-4-line' },
-	{ key: 'finalizada', label: 'Finalizada', icon: 'ri-checkbox-circle-line' },
+	{ key: 'en revision', label: 'En revisión', icon: 'ri-file-search-line' },
+	result?.isRejected
+		? { key: 'rechazada', label: 'Rechazada', icon: 'ri-close-circle-line' }
+		: { key: 'finalizada', label: 'Finalizada', icon: 'ri-checkbox-circle-line' },
 ];
-const activeStep = result ? steps.findIndex((s) => s.key === result!.status) : -1;
+const activeStep = result
+	? (result.isRejected ? 3 : steps.findIndex((s) => s.key === result!.status))
+	: -1;
 ---
 
 <html lang="es" data-bs-theme="light">
@@ -114,6 +125,11 @@ const activeStep = result ? steps.findIndex((s) => s.key === result!.status) : -
 									<span class="text-muted small d-block text-uppercase" style="letter-spacing: 0.05em; font-size: 0.7rem;">Caso / Seguimiento</span>
 									<strong class="h4 text-dark fw-bold d-block font-monospace">{result.ticket_number}</strong>
 									<span class="text-muted small">Hola {result.customerName}, registrado el {result.createdAtStr}</span>
+									<div class="mt-2 text-muted small bg-light p-2 rounded">
+										<strong>Producto:</strong> {result.productName || '—'} &nbsp;|&nbsp; 
+										<strong>Marca:</strong> {result.productBrand || '—'} &nbsp;|&nbsp; 
+										<strong>Serial:</strong> {result.productSerialNumber}
+									</div>
 								</div>
 								{result.isRejected ? (
 									<span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fs-6">Rechazada</span>
@@ -121,6 +137,8 @@ const activeStep = result ? steps.findIndex((s) => s.key === result!.status) : -
 									<span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fs-6">Finalizada</span>
 								) : result.status === 'en proceso' ? (
 									<span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2 fs-6">En proceso</span>
+								) : result.status === 'en revision' ? (
+									<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">En revisión</span>
 								) : (
 									<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">Nueva solicitud</span>
 								)}

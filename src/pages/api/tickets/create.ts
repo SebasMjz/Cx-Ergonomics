@@ -14,6 +14,10 @@ export const POST: APIRoute = async ({ request }) => {
 			customerCity,
 			customerDepartment,
 			productSerialNumber,
+			productName,
+			productBrand,
+			storeManagerName,
+			storeManagerPhone,
 			issueDescription,
 			salesReceiptImage,
 			evidenceVideo,
@@ -25,8 +29,9 @@ export const POST: APIRoute = async ({ request }) => {
 			!customerCi ||
 			!customerPhone ||
 			!customerCity ||
-			!customerDepartment ||
 			!productSerialNumber ||
+			!productName ||
+			!productBrand ||
 			!issueDescription ||
 			!salesReceiptImage ||
 			!evidenceVideo
@@ -90,9 +95,13 @@ export const POST: APIRoute = async ({ request }) => {
 						ci: customerCi,
 						phone: customerPhone,
 						city: customerCity,
-						department: customerDepartment,
+						department: customerDepartment || '',
 					},
 					product_serial_number: productSerialNumber,
+					product_name: productName,
+					product_brand: productBrand,
+					store_manager_name: storeManagerName || '',
+					store_manager_phone: storeManagerPhone || '',
 					sales_receipt_image: salesReceiptImage,
 					issue_description: issueDescription,
 					evidence_video: evidenceVideo,

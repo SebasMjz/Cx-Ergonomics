@@ -24,7 +24,9 @@ type ClientGroup = {
 const statusLabel: Record<string, string> = {
 	recibida: 'Nueva',
 	'en proceso': 'En proceso',
+	'en revision': 'En revisión',
 	finalizada: 'Finalizada',
+	rechazada: 'Rechazada',
 };
 
 const fmt = (d: Date) => new Intl.DateTimeFormat('es-VE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d));
@@ -139,6 +141,8 @@ const clientsData = JSON.stringify(clients);
 			function statusClass(s) {
 				if (s === 'Finalizada') return 'bg-success-subtle text-success';
 				if (s === 'En proceso') return 'bg-info-subtle text-info';
+				if (s === 'En revisión') return 'bg-primary-subtle text-primary';
+				if (s === 'Rechazada') return 'bg-danger-subtle text-danger';
 				return 'bg-warning-subtle text-warning';
 			}
 

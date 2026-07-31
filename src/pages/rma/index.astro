@@ -80,7 +80,9 @@ function trackingUrlFor(ticketNumber: string) {
 const waTemplates: Record<TicketStatus, string> = {
 	recibida: settings.rma_wa_msg_recibida || '',
 	'en proceso': settings.rma_wa_msg_proceso || '',
+	'en revision': settings.rma_wa_msg_proceso || '', // default to in process message
 	finalizada: settings.rma_wa_msg_finalizada || '',
+	rechazada: settings.rma_wa_msg_rechazo || '',
 };
 const waRechazoTemplate = settings.rma_wa_msg_rechazo || '';
 
@@ -98,47 +100,78 @@ function buildWaHref(ticket: DashboardTicket, status: TicketStatus) {
 		.replace(/\{ticket\}/g, ticket.ticket_number)
 		.replace(/\{cliente\}/g, ticket.customer_details.name)
 		.replace(/\{url\}/g, trackingUrlFor(ticket.ticket_number));
-	const phone = normalizePhone(ticket.customer_details.phone);
-	return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+	const finalMsg = status === 'rechazada'
+		? msg.replace(/\{motivo\}/g, ticket.resolution_main_comment || '')
+		: msg;
+	const phone = normalizePhone(ticket.store_manager_phone || ticket.customer_details.phone);
+	return `https://wa.me/${phone}?text=${encodeURIComponent(finalMsg)}`;
 }
 
 const phaseLabels: Record<TicketStatus, string> = {
 	recibida: 'Nuevas solicitudes',
 	'en proceso': 'En proceso',
+	'en revision': 'En revisión',
 	finalizada: 'Finalizadas',
+	rechazada: 'Rechazadas',
 };
 
-// Colores semáforo: Nuevas = azul, En proceso = ámbar, Finalizadas = verde.
+// Colores semáforo expandidos: Nuevas = azul, En proceso = ámbar, En revisión = púrpura, Finalizadas = verde, Rechazadas = rojo.
 const phaseTone: Record<TicketStatus, string> = {
 	recibida: 'blue',
 	'en proceso': 'amber',
+	'en revision': 'purple',
 	finalizada: 'green',
+	rechazada: 'red',
 };
 
 const ticketsByStatus = activeTickets.reduce(
 	(acc, ticket) => {
-		acc[ticket.status].push(ticket);
+		if (acc[ticket.status]) {
+			acc[ticket.status].push(ticket);
+		}
 		return acc;
 	},
 	{
 		recibida: [] as DashboardTicket[],
 		'en proceso': [] as DashboardTicket[],
+		'en revision': [] as DashboardTicket[],
 		finalizada: [] as DashboardTicket[],
+		rechazada: [] as DashboardTicket[],
 	}
 );
 
-const totalTickets = activeTickets.length;
-const reviewTickets = ticketsByStatus.recibida.length;
-const inProgressTickets = ticketsByStatus['en proceso'].length;
-const doneTickets = ticketsByStatus.finalizada.length;
-const openTickets = reviewTickets + inProgressTickets;
+// Group all tickets (active + archived) to compute global counts
+const allTicketsByStatus = allTickets.reduce(
+	(acc, ticket) => {
+		if (acc[ticket.status]) {
+			acc[ticket.status].push(ticket);
+		}
+		return acc;
+	},
+	{
+		recibida: [] as DashboardTicket[],
+		'en proceso': [] as DashboardTicket[],
+		'en revision': [] as DashboardTicket[],
+		finalizada: [] as DashboardTicket[],
+		rechazada: [] as DashboardTicket[],
+	}
+);
 
-const kanbanColumns = (['recibida', 'en proceso', 'finalizada'] as TicketStatus[]).map((status) => ({
+const totalTickets = allTickets.length;
+const reviewTickets = allTicketsByStatus.recibida.length;
+const inProgressTickets = allTicketsByStatus['en proceso'].length;
+const inRevisionTickets = allTicketsByStatus['en revision'] ? allTicketsByStatus['en revision'].length : 0;
+const doneTickets = allTicketsByStatus.finalizada.length;
+const rejectedTickets = allTicketsByStatus.rechazada ? allTicketsByStatus.rechazada.length : 0;
+const openTickets = reviewTickets + inProgressTickets + inRevisionTickets;
+
+
+const kanbanColumns = (['recibida', 'en revision', 'en proceso', 'finalizada', 'rechazada'] as TicketStatus[]).map((status) => ({
 	status,
 	label: phaseLabels[status],
 	tone: phaseTone[status],
-	count: ticketsByStatus[status].length,
-	items: ticketsByStatus[status],
+	count: ticketsByStatus[status] ? ticketsByStatus[status].length : 0,
+	items: ticketsByStatus[status] || [],
 }));
 
 const now = new Date();
@@ -240,6 +273,9 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<p class="text-muted small mb-0">Seguimiento de garantías, evidencias y resolución de casos.</p>
 							</div>
 							<div class="d-flex gap-2">
+								<button type="button" class="btn btn-sm btn-outline-success px-3 rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#advancedReportModal">
+									<i class="ri-file-excel-2-line me-1"></i> Reporte Avanzado
+								</button>
 								<button type="button" class="btn btn-sm btn-outline-dark px-3 rounded-pill fw-semibold" id="export-active-btn">
 									<i class="ri-file-excel-line me-1"></i> Exportar Activos
 								</button>
@@ -251,18 +287,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 						<!-- Statistics cards (Small Boxes - Grayscale style, Flat borders, no neon) -->
 						<div class="row g-4 mb-5">
-							<div class="col-xl-3 col-md-6">
+							<!-- Casos Totales -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
 								<div class="small-box bg-dark text-white border-0 shadow-sm">
 									<div class="inner text-white">
 										<h3 class="text-white">{totalTickets}</h3>
-										<p class="text-white-50">Casos Activos</p>
+										<p class="text-white-50">Casos Totales</p>
 									</div>
 									<div class="small-box-icon text-white-50">
 										<i class="ri-history-line"></i>
 									</div>
 								</div>
 							</div>
-							<div class="col-xl-3 col-md-6">
+							<!-- Nuevas Solicitudes -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
 										<h3>{reviewTickets}</h3>
@@ -273,7 +311,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 								</div>
 							</div>
-							<div class="col-xl-3 col-md-6">
+							<!-- En Revisión -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
+								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
+									<div class="inner">
+										<h3>{inRevisionTickets}</h3>
+										<p class="text-muted">En Revisión</p>
+									</div>
+									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
+										<i class="ri-file-search-line"></i>
+									</div>
+								</div>
+							</div>
+							<!-- En Proceso -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
 										<h3>{inProgressTickets}</h3>
@@ -284,7 +335,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 								</div>
 							</div>
-							<div class="col-xl-3 col-md-6">
+							<!-- Finalizadas -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
 										<h3>{doneTickets}</h3>
@@ -295,13 +347,24 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 								</div>
 							</div>
+							<!-- Rechazadas -->
+							<div class="col-xl-2 col-md-4 col-sm-6">
+								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
+									<div class="inner">
+										<h3>{rejectedTickets}</h3>
+										<p class="text-muted">Rechazadas</p>
+									</div>
+									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
+										<i class="ri-close-circle-line"></i>
+									</div>
+								</div>
+							</div>
 						</div>
 
 						<!-- Main Kanban Layout Grid -->
 						<div class="row g-4 mb-5">
-							
-							<!-- Kanban Board (Left Column) -->
-							<div class="col-12 col-xl-9">
+							<!-- Kanban Board (Full Width) -->
+							<div class="col-12">
 								<div class="card border border-light-subtle h-100 shadow-sm">
 									<div class="card-header bg-transparent py-4 border-bottom-0">
 										<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -312,10 +375,10 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<span class="badge bg-secondary-subtle text-secondary rounded-pill">{totalTickets} registros</span>
 										</div>
 									</div>
-									<div class="card-body p-4">
-										<div class="row g-4">
+									<div class="card-body p-4 pt-0">
+										<div class="d-flex flex-nowrap overflow-x-auto gap-3 pb-3 kanban-board-container" style="min-width: 100%;">
 											{kanbanColumns.map((column) => (
-												<div class="col-12 col-md-4">
+												<div class="flex-shrink-0 kanban-column-wrapper" style="width: 290px; min-width: 290px;">
 													<!-- Color indicators: top border matches column state -->
 													<div class={`card h-100 bg-body-tertiary border-0 shadow-none rounded-3 column-${column.tone}`} style="overflow: hidden;">
 														<!-- Column Header -->
@@ -325,9 +388,9 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 														</div>
 														
 														<!-- Drop Zone Area -->
-														<div class="card-body p-2.5 d-flex flex-column lane-column" data-status={column.status} style="min-height: 480px; transition: background-color 0.2s ease;">
+														<div class="card-body p-2.5 d-flex flex-column lane-column" data-status={column.status} style="transition: background-color 0.2s ease;">
 															{column.items.length === 0 ? (
-																<div class="empty-state text-muted text-center py-5 my-auto">
+																<div class="empty-state text-muted text-center py-5 my-auto w-100">
 																	<i class="ri-inbox-line fs-2 mb-2 d-block opacity-50"></i>
 																	<span class="small d-block">Sin tickets en esta fase</span>
 																</div>
@@ -371,17 +434,17 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 																				</div>
 																				
 																				<!-- WhatsApp: mensaje pre-armado según la columna -->
-																	<a
-																		href={buildWaHref(ticket, column.status)}
-																		target="_blank"
-																		rel="noopener"
-																		class="btn btn-xs w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 wa-ticket-btn mb-1"
-																		style="font-size: 0.72rem; background-color: #25D366; color: #fff; border: none;"
-																	>
-																		<i class="ri-whatsapp-line"></i> Enviar WhatsApp
-																	</a>
+																				<a
+																					href={buildWaHref(ticket, column.status)}
+																					target="_blank"
+																					rel="noopener"
+																					class="btn btn-xs w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 wa-ticket-btn mb-1"
+																					style="font-size: 0.72rem; background-color: #25D366; color: #fff; border: none;"
+																				>
+																					<i class="ri-whatsapp-line"></i> Enviar WhatsApp
+																				</a>
 
-																	<!-- Column actions -->
+																				<!-- Column actions -->
 																				{column.status === 'recibida' && (
 																					<div class="mt-3">
 																						<button type="button" class="btn btn-xs btn-outline-danger w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 reject-ticket-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
@@ -390,7 +453,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 																					</div>
 																				)}
 																				
-																				{column.status === 'finalizada' && (
+																				{(column.status === 'finalizada' || column.status === 'rechazada') && (
 																					<div class="mt-3">
 																						<button type="button" class="btn btn-xs btn-outline-dark w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 archive-ticket-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
 																							<i class="ri-archive-line"></i> Archivar Ticket
@@ -410,46 +473,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 								</div>
 							</div>
-
-							<!-- Side Panel (Right Column) - Now containing Archived Tickets Preview instead of unused components -->
-							<div class="col-12 col-xl-3">
-								<div class="card border border-light-subtle shadow-sm h-100">
-									<div class="card-header bg-transparent py-4 border-bottom-0 d-flex justify-content-between align-items-center">
-										<div>
-											<h3 class="h6 mb-1 fw-bold text-dark">Tickets Archivados</h3>
-											<p class="text-muted small mb-0">Últimos casos finalizados</p>
-										</div>
-										<span class="badge bg-secondary-subtle text-secondary rounded-pill">{archivedTickets.length}</span>
-									</div>
-									<div class="card-body p-3 pt-0">
-										<div class="list-group list-group-flush">
-											{archivedTickets.length === 0 ? (
-												<div class="text-center py-5 text-muted small">
-													<i class="ri-archive-line d-block fs-2 mb-2 opacity-30"></i>
-													No hay tickets archivados actualmente en la base de datos.
-												</div>
-											) : (
-												archivedTickets.slice(0, 5).map((ticket) => (
-													<div class="list-group-item px-3 py-3 mb-2.5 border rounded-3 archived-preview-item bg-body" data-ticket-number={ticket.ticket_number} style="cursor: pointer; transition: all 0.2s ease;">
-														<div class="d-flex justify-content-between align-items-start">
-															<div>
-																<strong class="small text-body d-block font-monospace mb-1">{ticket.ticket_number}</strong>
-																<span class="text-muted small d-block" style="font-size: 0.78rem;">
-																	<i class="ri-user-line me-1"></i>{ticket.customer_details.name}
-																</span>
-															</div>
-															<span class="text-muted small text-end" style="font-size: 0.68rem; min-width: 60px;">
-																{timeAgo(new Date(ticket.updatedAt))}
-															</span>
-														</div>
-													</div>
-												))
-											)}
-										</div>
-									</div>
-								</div>
-							</div>
-
 						</div>
 
 						<!-- Archived Tickets Section (Collapse format list - now with pagination and advanced search) -->
@@ -645,9 +668,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							<textarea class="form-control" id="finalize-client-solution" rows="2" placeholder="Qué se le dio / resolvió al cliente..."></textarea>
 						</div>
 
-						<div class="mb-0">
+						<div class="mb-3">
 							<label for="finalize-supplier-solution" class="form-label small fw-bold text-muted">Solución del proveedor</label>
 							<textarea class="form-control" id="finalize-supplier-solution" rows="2" placeholder="Qué nos dio / resolvió el proveedor..."></textarea>
+						</div>
+
+						<div class="row mt-3">
+							<div class="col-md-6 mb-3 mb-md-0">
+								<label for="finalize-client-transaction" class="form-label small fw-bold text-muted">Número de transacción cliente</label>
+								<input type="text" class="form-control" id="finalize-client-transaction" placeholder="Transacción cliente..." />
+							</div>
+							<div class="col-md-6">
+								<label for="finalize-supplier-transaction" class="form-label small fw-bold text-muted">Número de transacción proveedor</label>
+								<input type="text" class="form-control" id="finalize-supplier-transaction" placeholder="Transacción proveedor..." />
+							</div>
 						</div>
 
 						<div class="alert alert-danger d-none mt-3 py-2 small" id="finalize-error"></div>
@@ -690,6 +724,59 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			</div>
 		</div>
 
+		<!-- Checklist Modal for Missing Steps -->
+		<div class="modal fade" id="completeStepsModal" tabindex="-1" aria-labelledby="completeStepsModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+				<div class="modal-content border-0 shadow" style="border-radius: 12px; overflow: hidden;">
+					<div class="modal-header bg-light border-bottom">
+						<h5 class="modal-title fw-bold" id="completeStepsModalLabel">
+							Completar Pasos Obligatorios <span class="badge bg-dark text-white ms-2" id="complete-steps-ticket-number">RMA-XXXX</span>
+						</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+					</div>
+					<div class="modal-body p-4">
+						<div class="alert alert-warning py-2 mb-3 small d-flex align-items-center gap-2">
+							<i class="ri-alert-line fs-5"></i>
+							<span>Faltan marcar pasos obligatorios antes de finalizar este caso.</span>
+						</div>
+						<p class="text-muted small mb-3">Márcalos aquí mismo para poder proceder con la finalización:</p>
+						
+						<div class="list-group">
+							<label class="list-group-item d-flex gap-2 py-2.5">
+								<input class="form-check-input flex-shrink-0" type="checkbox" id="cstep-left-at-branch" />
+								<div>
+									<strong class="d-block small">Producto dejado en sucursal</strong>
+									<span class="text-muted small" style="font-size: 0.75rem;">El cliente entregó el equipo en la tienda/oficina.</span>
+								</div>
+							</label>
+							<label class="list-group-item d-flex gap-2 py-2.5">
+								<input class="form-check-input flex-shrink-0" type="checkbox" id="cstep-sent-to-distributor" />
+								<div>
+									<strong class="d-block small">Producto mandado con distribuidor</strong>
+									<span class="text-muted small" style="font-size: 0.75rem;">El equipo se envió a garantía con el distribuidor.</span>
+								</div>
+							</label>
+							<label class="list-group-item d-flex gap-2 py-2.5">
+								<input class="form-check-input flex-shrink-0" type="checkbox" id="cstep-resolved" />
+								<div>
+									<strong class="d-block small">Producto dado solución</strong>
+									<span class="text-muted small" style="font-size: 0.75rem;">El distribuidor o taller técnico entregó el veredicto/solución.</span>
+								</div>
+							</label>
+						</div>
+						
+						<div class="alert alert-danger d-none mt-3 py-2 small" id="complete-steps-error"></div>
+					</div>
+					<div class="modal-footer border-top bg-light">
+						<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+						<button type="button" class="btn btn-sm btn-dark rounded-pill px-3" id="complete-steps-submit-btn">
+							Guardar y continuar <i class="ri-arrow-right-line ms-1"></i>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Global Toast Container -->
 		<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
 			<div id="app-toast" class="toast align-items-center text-white border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true" style="border-radius: 10px;">
@@ -714,6 +801,56 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			</div>
 		</div>
 
+		<!-- Modal Reporte Avanzado Excel -->
+		<div class="modal fade" id="advancedReportModal" tabindex="-1" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content border-0 shadow">
+					<div class="modal-header">
+						<h5 class="modal-title fw-bold"><i class="ri-file-excel-2-line text-success me-2"></i>Reporte Avanzado (Excel)</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+					</div>
+					<div class="modal-body p-4">
+						<div class="mb-3">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Incluir Tipo de Ticket</label>
+							<select class="form-select" id="report-scope">
+								<option value="all" selected>Todos los Tickets (Activos + Archivados)</option>
+								<option value="active">Solo Tickets Activos</option>
+								<option value="archived">Solo Tickets Archivados</option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label class="form-label small fw-bold text-muted text-uppercase mb-1">Filtrar por Estado</label>
+							<select class="form-select" id="report-status">
+								<option value="all" selected>Todos los Estados</option>
+								<option value="recibida">Nuevas solicitudes</option>
+								<option value="en revision">En revisión</option>
+								<option value="en proceso">En proceso</option>
+								<option value="finalizada">Finalizadas</option>
+								<option value="rechazada">Rechazadas</option>
+							</select>
+						</div>
+						<div class="row g-3 mb-0">
+							<div class="col-6">
+								<label for="report-start-date" class="form-label small fw-bold text-muted text-uppercase mb-1">Fecha de Inicio</label>
+								<input type="date" class="form-control" id="report-start-date" />
+							</div>
+							<div class="col-6">
+								<label for="report-end-date" class="form-label small fw-bold text-muted text-uppercase mb-1">Fecha de Fin</label>
+								<input type="date" class="form-control" id="report-end-date" />
+							</div>
+						</div>
+						<div class="form-text small text-muted mt-2">Deja las fechas vacías para exportar todo el historial sin límite de tiempo.</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+						<button type="button" class="btn btn-success rounded-pill px-4 fw-semibold" id="generate-adv-report-btn">
+							<i class="ri-download-2-line me-1"></i>Descargar Excel
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Serialized Ticket Data -->
 		<script is:inline set:html={`window.ALL_TICKETS = ${ticketsJson};`} />
 		<script is:inline set:html={`window.CX_WA = { rechazo: ${JSON.stringify(waRechazoTemplate)}, trackingBase: ${JSON.stringify(trackingBase)} };`} />
@@ -722,9 +859,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			/* Custom card spacing and collapsed sidebar styling */
 			.draggable-ticket, .archived-preview-item {
 				margin-bottom: 0.75rem !important;
-			}
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer > div:first-child {
-				display: none !important;
 			}
 			:root, [data-bs-theme='light'] {
 				--bs-primary: #212529 !important;
@@ -750,34 +884,56 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 
 
-			/* Tarjetas de ticket: menos planas */
-			.draggable-ticket { border-radius: 12px !important; border-color: #e9ebef !important; }
-			.lane-column { border-radius: 10px; }
+			.lane-column {
+				max-height: 760px;
+				overflow-y: auto;
+				scrollbar-width: thin;
+				scrollbar-color: rgba(33,37,41,0.2) transparent;
+				min-height: 480px;
+				transition: background-color 0.2s ease;
+			}
+			.lane-column::-webkit-scrollbar {
+				width: 6px;
+			}
+			.lane-column::-webkit-scrollbar-thumb {
+				background-color: rgba(33,37,41,0.2);
+				border-radius: 3px;
+			}
 
 			/* Indicadores de columna — colores semáforo:
-			   Nuevas = azul, En proceso = ámbar, Finalizadas = verde. */
-			.column-blue  { border-top: none !important; background: transparent !important; }
-			.column-amber { border-top: none !important; background: transparent !important; }
-			.column-green { border-top: none !important; background: transparent !important; }
+			   Nuevas = azul, En proceso = ámbar, En revisión = púrpura, Finalizadas = verde, Rechazadas = rojo. */
+			.column-blue   { border-top: none !important; background: transparent !important; }
+			.column-amber  { border-top: none !important; background: transparent !important; }
+			.column-purple { border-top: none !important; background: transparent !important; }
+			.column-green  { border-top: none !important; background: transparent !important; }
+			.column-red    { border-top: none !important; background: transparent !important; }
 
 			/* Punto de color junto al título y badge de conteo tintado por columna */
-			.column-blue  .card-title::before,
-			.column-amber .card-title::before,
-			.column-green .card-title::before {
+			.column-blue   .card-title::before,
+			.column-amber  .card-title::before,
+			.column-purple .card-title::before,
+			.column-green  .card-title::before,
+			.column-red    .card-title::before {
 				content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: middle;
 			}
-			.column-blue  .card-title::before { background: #0d6efd; }
-			.column-amber .card-title::before { background: #f59e0b; }
-			.column-green .card-title::before { background: #198754; }
+			.column-blue   .card-title::before { background: #0d6efd; }
+			.column-amber  .card-title::before { background: #f59e0b; }
+			.column-purple .card-title::before { background: #8f00ff; }
+			.column-green  .card-title::before { background: #198754; }
+			.column-red    .card-title::before { background: #dc3545; }
 
-			.column-blue  > .card-header .badge { background: #0d6efd !important; color: #fff !important; }
-			.column-amber > .card-header .badge { background: #f59e0b !important; color: #fff !important; }
-			.column-green > .card-header .badge { background: #198754 !important; color: #fff !important; }
+			.column-blue   > .card-header .badge { background: #0d6efd !important; color: #fff !important; }
+			.column-amber  > .card-header .badge { background: #f59e0b !important; color: #fff !important; }
+			.column-purple > .card-header .badge { background: #8f00ff !important; color: #fff !important; }
+			.column-green  > .card-header .badge { background: #198754 !important; color: #fff !important; }
+			.column-red    > .card-header .badge { background: #dc3545 !important; color: #fff !important; }
 
 			/* Acento de color a la izquierda de cada tarjeta según su columna */
-			.column-blue  .draggable-ticket { border-left: 4px solid #0d6efd !important; }
-			.column-amber .draggable-ticket { border-left: 4px solid #f59e0b !important; }
-			.column-green .draggable-ticket { border-left: 4px solid #198754 !important; }
+			.column-blue   .draggable-ticket { border-left: 4px solid #0d6efd !important; }
+			.column-amber  .draggable-ticket { border-left: 4px solid #f59e0b !important; }
+			.column-purple .draggable-ticket { border-left: 4px solid #8f00ff !important; }
+			.column-green  .draggable-ticket { border-left: 4px solid #198754 !important; }
+			.column-red    .draggable-ticket { border-left: 4px solid #dc3545 !important; }
 			
 			.draggable-ticket {
 				transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
@@ -788,25 +944,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				border-color: #212529 !important;
 			}
 
-			/* Sidebar Collapsed Brand styles */
-			.sidebar.sidebar-mini:not(.open) .normal-logo {
-				display: none !important;
-			}
-			.sidebar.sidebar-mini:not(.open) .brand-name {
-				display: none !important;
-			}
-			.sidebar.sidebar-mini:not(.open) .mini-logo {
-				display: block !important;
-			}
-			.sidebar.sidebar-mini:not(.open) .sidebar-header {
-				justify-content: center !important;
-			}
-			.sidebar.sidebar-mini:not(.open) .toggle-mini {
-				display: none !important;
-			}
-			.sidebar.sidebar-mini.open .mini-logo {
-				display: none !important;
-			}
+
 
 			/* List Item Hover Preview Style - Rounded Card format with separators */
 			.archived-preview-item {
@@ -907,30 +1045,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			.cx-bubble-text { font-size: .85rem; line-height: 1.4; margin: 0; white-space: pre-line; }
 			.cx-bubble-time { display: block; font-size: .65rem; color: #9ca3af; margin-top: .2rem; text-align: right; }
 
-			/* Estilos para el botón de cerrar sesión en sidebar colapsado */
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer {
-				padding: 0.75rem 0.5rem !important;
-				display: flex;
-				justify-content: center;
-			}
-			.sidebar.sidebar-mini:not(.open) #logout-button {
-				width: 40px !important;
-				height: 40px !important;
-				padding: 0 !important;
-				border-radius: 50% !important;
-				display: flex !important;
-				align-items: center !important;
-				justify-content: center !important;
-			}
-			.sidebar.sidebar-mini:not(.open) #logout-button span {
-				display: none !important;
-			}
-			/* Override standard template styles that hide the logout icon when mini */
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer #logout-button i {
-				display: inline-block !important;
-				margin: 0 !important;
-				font-size: 1.15rem !important;
-			}
+
 
 			/* iOS Notes style Checklist */
 			.ios-checkbox-input {
@@ -1095,6 +1210,110 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					modal?.hide();
 				});
 
+				// ---- Modal de Pasos Obligatorios Faltantes ----
+				let pendingCompleteSteps: { ticketNumber: string; status: string; orderedNumbers: any[] } | null = null;
+				let completeStepsSubmitting = false;
+				const completeStepsModalEl = document.getElementById('completeStepsModal');
+
+				function openCompleteStepsModal(ticketNumber: string, status: string, orderedNumbers: any[]) {
+					pendingCompleteSteps = { ticketNumber, status, orderedNumbers };
+					completeStepsSubmitting = false;
+
+					const numEl = document.getElementById('complete-steps-ticket-number');
+					if (numEl) numEl.textContent = ticketNumber;
+
+					// @ts-ignore
+					const ticket = window.ALL_TICKETS.find(t => t.ticket_number === ticketNumber);
+					
+					const step1El = document.getElementById('cstep-left-at-branch') as HTMLInputElement;
+					const step2El = document.getElementById('cstep-sent-to-distributor') as HTMLInputElement;
+					const step3El = document.getElementById('cstep-resolved') as HTMLInputElement;
+					
+					if (ticket) {
+						step1El.checked = !!ticket.step_left_at_branch;
+						step1El.disabled = !!ticket.step_left_at_branch;
+						
+						step2El.checked = !!ticket.step_sent_to_distributor;
+						step2El.disabled = !!ticket.step_sent_to_distributor;
+						
+						step3El.checked = !!ticket.step_resolved;
+						step3El.disabled = !!ticket.step_resolved;
+					} else {
+						step1El.checked = false;
+						step1El.disabled = false;
+						step2El.checked = false;
+						step2El.disabled = false;
+						step3El.checked = false;
+						step3El.disabled = false;
+					}
+
+					document.getElementById('complete-steps-error')?.classList.add('d-none');
+					// @ts-ignore
+					bootstrap.Modal.getOrCreateInstance(completeStepsModalEl).show();
+				}
+
+				completeStepsModalEl?.addEventListener('hidden.bs.modal', () => {
+					if (pendingCompleteSteps && !completeStepsSubmitting) {
+						window.location.reload();
+					}
+				});
+
+				document.getElementById('complete-steps-submit-btn')?.addEventListener('click', async () => {
+					if (!pendingCompleteSteps) return;
+					const errEl = document.getElementById('complete-steps-error');
+					const showErr = (msg: string) => {
+						if (errEl) {
+							errEl.textContent = msg;
+							errEl.classList.remove('d-none');
+						}
+					};
+
+					const step_left_at_branch = (document.getElementById('cstep-left-at-branch') as HTMLInputElement).checked;
+					const step_sent_to_distributor = (document.getElementById('cstep-sent-to-distributor') as HTMLInputElement).checked;
+					const step_resolved = (document.getElementById('cstep-resolved') as HTMLInputElement).checked;
+
+					if (!step_left_at_branch || !step_sent_to_distributor || !step_resolved) {
+						return showErr('Debes marcar todos los pasos obligatorios antes de continuar.');
+					}
+
+					const btn = document.getElementById('complete-steps-submit-btn') as HTMLButtonElement;
+					try {
+						completeStepsSubmitting = true;
+						btn.disabled = true;
+						btn.textContent = 'Guardando...';
+
+						const res = await fetch('/api/tickets/update-steps', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({
+								ticketNumber: pendingCompleteSteps.ticketNumber,
+								step_left_at_branch,
+								step_sent_to_distributor,
+								step_resolved,
+							}),
+						});
+						const data = await res.json();
+						if (!res.ok) throw new Error(data.error || 'Error al guardar los pasos');
+
+						// @ts-ignore
+						const ticket = window.ALL_TICKETS.find(t => t.ticket_number === pendingCompleteSteps.ticketNumber);
+						if (ticket) {
+							ticket.step_left_at_branch = true;
+							ticket.step_sent_to_distributor = true;
+							ticket.step_resolved = true;
+						}
+
+						// @ts-ignore
+						bootstrap.Modal.getOrCreateInstance(completeStepsModalEl).hide();
+						openFinalizeModal(pendingCompleteSteps.ticketNumber, pendingCompleteSteps.status, pendingCompleteSteps.orderedNumbers);
+					} catch (err: any) {
+						completeStepsSubmitting = false;
+						btn.disabled = false;
+						btn.innerHTML = 'Guardar y continuar <i class="ri-arrow-right-line ms-1"></i>';
+						showErr(err.message || 'Error de red');
+					}
+				});
+
 				// ---- Modal de finalización (resolución) ----
 				let pendingFinalize: { ticketNumber: string; status: string; orderedNumbers: any[] } | null = null;
 				let finalizeSubmitting = false;
@@ -1113,6 +1332,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					(document.getElementById('finalize-main-comment') as HTMLTextAreaElement).value = '';
 					(document.getElementById('finalize-client-solution') as HTMLTextAreaElement).value = '';
 					(document.getElementById('finalize-supplier-solution') as HTMLTextAreaElement).value = '';
+					(document.getElementById('finalize-client-transaction') as HTMLInputElement).value = '';
+					(document.getElementById('finalize-supplier-transaction') as HTMLInputElement).value = '';
 					document.getElementById('finalize-error')?.classList.add('d-none');
 
 					// @ts-ignore
@@ -1140,10 +1361,12 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					const mainComment = (document.getElementById('finalize-main-comment') as HTMLTextAreaElement).value.trim();
 					const clientSolution = (document.getElementById('finalize-client-solution') as HTMLTextAreaElement).value.trim();
 					const supplierSolution = (document.getElementById('finalize-supplier-solution') as HTMLTextAreaElement).value.trim();
+					const clientTransactionNumber = (document.getElementById('finalize-client-transaction') as HTMLInputElement).value.trim();
+					const supplierTransactionNumber = (document.getElementById('finalize-supplier-transaction') as HTMLInputElement).value.trim();
 
 					if (!typeEl) return showErr('Selecciona un tipo de resolución (Rechazo, Descuento o Reponer).');
 					if (!mainComment) return showErr('Escribe el comentario principal de la resolución.');
-					if (!clientSolution && !supplierSolution) return showErr('Registra al menos una solución (al cliente o del proveedor).');
+					if (typeEl.value !== 'rechazo' && !clientSolution && !supplierSolution) return showErr('Registra al menos una solución (al cliente o del proveedor).');
 
 					const btn = document.getElementById('finalize-submit-btn') as HTMLButtonElement;
 					try {
@@ -1161,6 +1384,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								mainComment,
 								clientSolution,
 								supplierSolution,
+								clientTransactionNumber,
+								supplierTransactionNumber,
 							}),
 						});
 						const data = await res.json();
@@ -1248,6 +1473,25 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						
 						const ticketNumber = dragging.getAttribute('data-ticket-number');
 						const newStatus = column.getAttribute('data-status');
+						const originalStatus = dragging.getAttribute('data-status-type');
+
+						// Validación: No está permitido mover un ticket a un estado anterior de manera manual
+						const statusOrderMap = {
+							recibida: 0,
+							'en revision': 1,
+							'en proceso': 2,
+							finalizada: 3,
+							rechazada: 3,
+						};
+
+						const originalIndex = statusOrderMap[originalStatus] ?? 0;
+						const newIndex = statusOrderMap[newStatus] ?? 0;
+
+						if (newIndex < originalIndex) {
+							showToast('No está permitido mover un ticket a un estado anterior de manera manual.', 'danger');
+							window.location.reload();
+							return;
+						}
 						
 						// Get new ordered list of tickets in this lane
 						const orderedNumbers = [...column.querySelectorAll('.draggable-ticket')]
@@ -1269,12 +1513,17 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								const step2 = !!ticket.step_sent_to_distributor;
 								const step3 = !!ticket.step_resolved;
 								if (!step1 || !step2 || !step3) {
-									showToast('Debes completar los 3 pasos obligatorios en los detalles del ticket (Producto dejado en sucursal, Producto mandado con distribuidor y Producto dado solución) antes de finalizar este ticket.', 'danger');
-									window.location.reload();
+									openCompleteStepsModal(ticketNumber, newStatus, orderedNumbers);
 									return;
 								}
 							}
 							openFinalizeModal(ticketNumber, newStatus, orderedNumbers);
+							return;
+						}
+
+						// Al pasar a "Rechazada" se exige registrar el motivo del rechazo antes de guardar.
+						if (newStatus === 'rechazada' && ticketNumber) {
+							openRejectModal(ticketNumber, newStatus, orderedNumbers);
 							return;
 						}
 
@@ -1365,8 +1614,69 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 									<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Comentario principal:</strong><br>${ticket.resolution_main_comment || '—'}</p>
 									${ticket.client_solution ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Solución al cliente:</strong><br>${ticket.client_solution}</p>` : ''}
-									${ticket.supplier_solution ? `<p class="mb-0 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Solución del proveedor:</strong><br>${ticket.supplier_solution}</p>` : ''}
+									${ticket.client_transaction_number ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Nº Transacción Cliente:</strong><br>${ticket.client_transaction_number}</p>` : ''}
+									${ticket.supplier_solution ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Solución del proveedor:</strong><br>${ticket.supplier_solution}</p>` : ''}
+									${ticket.supplier_transaction_number ? `<p class="mb-0 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Nº Transacción Proveedor:</strong><br>${ticket.supplier_transaction_number}</p>` : ''}
 								</div>
+							</div>
+						`;
+					}
+
+					let editResolutionFormHtml = '';
+					if (ticket.status === 'finalizada' || ticket.status === 'rechazada') {
+						const isRechazo = ticket.resolution_type === 'rechazo' ? 'checked' : '';
+						const isDescuento = ticket.resolution_type === 'descuento' ? 'checked' : '';
+						const isReponer = ticket.resolution_type === 'reponer' ? 'checked' : '';
+						
+						editResolutionFormHtml = `
+							<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm" style="background-color: #fff;">
+								<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;"><i class="ri-edit-2-line me-1.5 text-secondary"></i>Editar Datos de Resolución</h6>
+								
+								<div class="mb-3">
+									<label class="form-label small fw-bold text-muted">Tipo de resolución <span class="text-danger">*</span></label>
+									<div class="d-flex gap-2 flex-wrap">
+										<input type="radio" class="btn-check" name="edit-res-type" id="edit-type-rechazo" value="rechazo" ${isRechazo} autocomplete="off" />
+										<label class="btn btn-outline-danger btn-sm rounded-pill px-3" for="edit-type-rechazo"><i class="ri-close-circle-line me-1"></i>Rechazo</label>
+
+										<input type="radio" class="btn-check" name="edit-res-type" id="edit-type-descuento" value="descuento" ${isDescuento} autocomplete="off" />
+										<label class="btn btn-outline-warning btn-sm rounded-pill px-3" for="edit-type-descuento"><i class="ri-percent-line me-1"></i>Descuento</label>
+
+										<input type="radio" class="btn-check" name="edit-res-type" id="edit-type-reponer" value="reponer" ${isReponer} autocomplete="off" />
+										<label class="btn btn-outline-success btn-sm rounded-pill px-3" for="edit-type-reponer"><i class="ri-refresh-line me-1"></i>Reponer</label>
+									</div>
+								</div>
+
+								<div class="mb-3">
+									<label for="edit-res-main-comment" class="form-label small fw-bold text-muted">Comentario principal (para reportes) <span class="text-danger">*</span></label>
+									<textarea class="form-control form-control-sm" id="edit-res-main-comment" rows="2" placeholder="Resumen / motivo de la resolución...">${ticket.resolution_main_comment || ''}</textarea>
+								</div>
+
+								<div class="mb-3">
+									<label for="edit-res-client-solution" class="form-label small fw-bold text-muted">Solución entregada al cliente</label>
+									<textarea class="form-control form-control-sm" id="edit-res-client-solution" rows="2" placeholder="Qué se le dio / resolvió al cliente...">${ticket.client_solution || ''}</textarea>
+								</div>
+
+								<div class="mb-3">
+									<label for="edit-res-supplier-solution" class="form-label small fw-bold text-muted">Solución del proveedor</label>
+									<textarea class="form-control form-control-sm" id="edit-res-supplier-solution" rows="2" placeholder="Qué nos dio / resolvió el proveedor...">${ticket.supplier_solution || ''}</textarea>
+								</div>
+
+								<div class="row g-2 mb-3">
+									<div class="col-6">
+										<label for="edit-res-client-transaction" class="form-label small fw-bold text-muted">Transacción cliente</label>
+										<input type="text" class="form-control form-control-sm" id="edit-res-client-transaction" value="${ticket.client_transaction_number || ''}" placeholder="Nº Transacción..." />
+									</div>
+									<div class="col-6">
+										<label for="edit-res-supplier-transaction" class="form-label small fw-bold text-muted">Transacción proveedor</label>
+										<input type="text" class="form-control form-control-sm" id="edit-res-supplier-transaction" value="${ticket.supplier_transaction_number || ''}" placeholder="Nº Transacción..." />
+									</div>
+								</div>
+
+								<div class="alert alert-danger d-none small py-1.5 px-3 mb-3" id="edit-res-error"></div>
+
+								<button type="button" class="btn btn-sm btn-dark rounded-pill px-3 w-100" id="edit-res-submit-btn">
+									<i class="ri-save-line me-1"></i>Guardar Cambios de Resolución
+								</button>
 							</div>
 						`;
 					}
@@ -1440,6 +1750,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 												<td class="text-dark fw-bold py-1">${ticket.product_serial_number}</td>
 											</tr>
 											<tr>
+												<td class="text-muted py-1">Producto:</td>
+												<td class="text-dark py-1">${ticket.product_name || '—'}</td>
+											</tr>
+											<tr>
+												<td class="text-muted py-1">Marca:</td>
+												<td class="text-dark py-1">${ticket.product_brand || '—'}</td>
+											</tr>
+											${ticket.store_manager_name ? `
+											<tr>
+												<td class="text-muted py-1">Encargado:</td>
+												<td class="text-dark py-1">${ticket.store_manager_name} ${ticket.store_manager_phone ? `(${ticket.store_manager_phone})` : ''}</td>
+											</tr>
+											` : ''}
+											<tr>
 												<td class="text-muted py-1">Registrado:</td>
 												<td class="text-dark py-1">${ticket.createdAtStr}</td>
 											</tr>
@@ -1494,6 +1818,9 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									</div>
 									<div id="steps-error-message" class="alert alert-danger d-none small py-1.5 px-3 mt-3 mb-0"></div>
 								</div>
+
+								<!-- FORMULARIO DE EDICIÓN DE RESOLUCIÓN -->
+								${editResolutionFormHtml}
 
 							</div>
 
@@ -1575,6 +1902,79 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							}
 						});
 					});
+
+					if (ticket.status === 'finalizada' || ticket.status === 'rechazada') {
+						const editSubmitBtn = modalBody.querySelector('#edit-res-submit-btn');
+						editSubmitBtn?.addEventListener('click', async () => {
+							const errorEl = modalBody.querySelector('#edit-res-error') as HTMLElement | null;
+							if (errorEl) errorEl.classList.add('d-none');
+
+							const typeEl = modalBody.querySelector('input[name="edit-res-type"]:checked') as HTMLInputElement | null;
+							const mainComment = (modalBody.querySelector('#edit-res-main-comment') as HTMLTextAreaElement).value.trim();
+							const clientSolution = (modalBody.querySelector('#edit-res-client-solution') as HTMLTextAreaElement).value.trim();
+							const supplierSolution = (modalBody.querySelector('#edit-res-supplier-solution') as HTMLTextAreaElement).value.trim();
+							const clientTransactionNumber = (modalBody.querySelector('#edit-res-client-transaction') as HTMLInputElement).value.trim();
+							const supplierTransactionNumber = (modalBody.querySelector('#edit-res-supplier-transaction') as HTMLInputElement).value.trim();
+
+							if (!typeEl) {
+								if (errorEl) {
+									errorEl.textContent = 'Selecciona un tipo de resolución.';
+									errorEl.classList.remove('d-none');
+								}
+								return;
+							}
+							if (!mainComment) {
+								if (errorEl) {
+									errorEl.textContent = 'El comentario principal es obligatorio.';
+									errorEl.classList.remove('d-none');
+								}
+								return;
+							}
+							if (typeEl.value !== 'rechazo' && !clientSolution && !supplierSolution) {
+								if (errorEl) {
+									errorEl.textContent = 'Registra al menos una solución (al cliente o del proveedor).';
+									errorEl.classList.remove('d-none');
+								}
+								return;
+							}
+
+							try {
+								if (editSubmitBtn) {
+									(editSubmitBtn as HTMLButtonElement).disabled = true;
+									editSubmitBtn.textContent = 'Guardando...';
+								}
+
+								const res = await fetch('/api/tickets/update-status', {
+									method: 'POST',
+									headers: { 'content-type': 'application/json' },
+									body: JSON.stringify({
+										ticketNumber: ticket.ticket_number,
+										status: ticket.status,
+										resolutionType: typeEl.value,
+										mainComment,
+										clientSolution,
+										supplierSolution,
+										clientTransactionNumber,
+										supplierTransactionNumber,
+									})
+								});
+								const data = await res.json();
+								if (!res.ok) throw new Error(data.error || 'Error al guardar los cambios');
+
+								window.location.reload();
+							} catch (err: any) {
+								console.error(err);
+								if (errorEl) {
+									errorEl.textContent = err.message;
+									errorEl.classList.remove('d-none');
+								}
+								if (editSubmitBtn) {
+									(editSubmitBtn as HTMLButtonElement).disabled = false;
+									editSubmitBtn.innerHTML = '<i class="ri-save-line me-1"></i>Guardar Cambios de Resolución';
+								}
+							}
+						});
+					}
 
 					// Media preview overlay click handlers
 					modalBody.querySelectorAll('.preview-trigger').forEach(trigger => {
@@ -1666,24 +2066,41 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					return digits;
 				}
 
-				let pendingRejectTicket: string | null = null;
+				let pendingReject: { ticketNumber: string; status: string; orderedNumbers: any[] } | null = null;
+				let rejectSubmitting = false;
 				const rejectModalEl = document.getElementById('rejectModal');
+
+				function openRejectModal(ticketNumber: string, status: string, orderedNumbers: any[]) {
+					pendingReject = { ticketNumber, status, orderedNumbers };
+					rejectSubmitting = false;
+
+					const numEl = document.getElementById('reject-ticket-number');
+					if (numEl) numEl.textContent = ticketNumber;
+					(document.getElementById('reject-reason') as HTMLTextAreaElement).value = '';
+					document.getElementById('reject-error')?.classList.add('d-none');
+					// @ts-ignore
+					bootstrap.Modal.getOrCreateInstance(rejectModalEl).show();
+				}
+
+				// Si se cierra sin rechazar, recargar para revertir el arrastre visual.
+				rejectModalEl?.addEventListener('hidden.bs.modal', () => {
+					if (pendingReject && !rejectSubmitting) {
+						window.location.reload();
+					}
+				});
 
 				document.querySelectorAll('.reject-ticket-btn').forEach(btn => {
 					btn.addEventListener('click', (e) => {
 						e.stopPropagation();
-						pendingRejectTicket = btn.getAttribute('data-ticket-number');
-						const numEl = document.getElementById('reject-ticket-number');
-						if (numEl) numEl.textContent = pendingRejectTicket || '';
-						(document.getElementById('reject-reason') as HTMLTextAreaElement).value = '';
-						document.getElementById('reject-error')?.classList.add('d-none');
-						// @ts-ignore
-						bootstrap.Modal.getOrCreateInstance(rejectModalEl).show();
+						const ticketNumber = btn.getAttribute('data-ticket-number');
+						if (ticketNumber) {
+							openRejectModal(ticketNumber, 'rechazada', []);
+						}
 					});
 				});
 
 				document.getElementById('reject-submit-btn')?.addEventListener('click', async () => {
-					if (!pendingRejectTicket) return;
+					if (!pendingReject) return;
 					const errEl = document.getElementById('reject-error');
 					const reason = (document.getElementById('reject-reason') as HTMLTextAreaElement).value.trim();
 					if (!reason) {
@@ -1692,14 +2109,16 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					}
 					const btn = document.getElementById('reject-submit-btn') as HTMLButtonElement;
 					try {
+						rejectSubmitting = true;
 						btn.disabled = true;
 						btn.textContent = 'Rechazando...';
 						const res = await fetch('/api/tickets/update-status', {
 							method: 'POST',
 							headers: { 'content-type': 'application/json' },
 							body: JSON.stringify({
-								ticketNumber: pendingRejectTicket,
-								status: 'finalizada',
+								ticketNumber: pendingReject.ticketNumber,
+								status: pendingReject.status,
+								orderedNumbers: pendingReject.orderedNumbers,
 								resolutionType: 'rechazo',
 								mainComment: reason,
 							}),
@@ -1709,7 +2128,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 						// Abrir WhatsApp con el motivo (plantilla configurable en Ajustes)
 						// @ts-ignore
-						const ticket = window.ALL_TICKETS.find((t: any) => t.ticket_number === pendingRejectTicket);
+						const ticket = window.ALL_TICKETS.find((t: any) => t.ticket_number === pendingReject.ticketNumber);
 						// @ts-ignore
 						const cfg = window.CX_WA || { rechazo: '', trackingBase: '' };
 						if (ticket && cfg.rechazo) {
@@ -1720,11 +2139,12 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								.replace(/\{cliente\}/g, ticket.customer_details.name)
 								.replace(/\{url\}/g, trackUrl)
 								.replace(/\{motivo\}/g, reason);
-							const phone = normalizePhoneClient(ticket.customer_details.phone);
+							const phone = normalizePhoneClient(ticket.store_manager_phone || ticket.customer_details.phone);
 							window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 						}
 						window.location.reload();
 					} catch (err: any) {
+						rejectSubmitting = false;
 						btn.disabled = false;
 						btn.innerHTML = '<i class="ri-close-circle-line me-1"></i>Rechazar y enviar WhatsApp';
 						if (errEl) { errEl.textContent = err.message; errEl.classList.remove('d-none'); }
@@ -1930,8 +2350,10 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				function exportToExcelHTML(filename: string, tickets: any[]) {
 					const statusMap: Record<string, string> = {
 						'recibida': 'Nueva solicitud',
+						'en revision': 'En revisión',
 						'en proceso': 'En proceso',
-						'finalizada': 'Finalizada'
+						'finalizada': 'Finalizada',
+						'rechazada': 'Rechazada'
 					};
 					const resMap: Record<string, string> = {
 						'rechazo': 'Rechazo',
@@ -1976,12 +2398,16 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<td style="mso-number-format:'\\@';">${details.phone || ''}</td>
 								<td>${details.city || ''}</td>
 								<td>${details.department || ''}</td>
+								<td>${t.product_name || ''}</td>
+								<td>${t.product_brand || ''}</td>
 								<td style="mso-number-format:'\\@';">${t.product_serial_number || ''}</td>
 								<td>${statusMap[t.status] || t.status}</td>
 								<td>${resMap[t.resolution_type] || t.resolution_type || '—'}</td>
 								<td>${t.resolution_main_comment || '—'}</td>
 								<td>${t.client_solution || '—'}</td>
+								<td>${t.client_transaction_number || '—'}</td>
 								<td>${t.supplier_solution || '—'}</td>
+								<td>${t.supplier_transaction_number || '—'}</td>
 								<td>${t.issue_description || ''}</td>
 								<td style="text-align:center; vertical-align:middle; width:90px; height:70px;">${receiptHtml}</td>
 								<td style="vertical-align:middle;">${evidenceHtml}</td>
@@ -2017,6 +2443,56 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						</head>
 						<body>
 							<table>
+								<!-- Resumen de Métricas -->
+								<thead>
+									<tr>
+										<th colspan="6" style="background-color: #212529; color: #ffffff; font-size: 13px; font-weight: bold; text-align: center; padding: 8px;">CX ERGONOMIC - METRICAS Y RESUMEN DE GARANTIAS</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr>
+										<td colspan="3" style="font-weight: bold; background-color: #f8f9fa;">Métrica</td>
+										<td colspan="3" style="font-weight: bold; background-color: #f8f9fa;">Valor</td>
+									</tr>
+									<tr>
+										<td colspan="3">Total de casos en reporte:</td>
+										<td colspan="3"><b>${tickets.length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">Casos Activos:</td>
+										<td colspan="3"><b>${tickets.filter(t => !t.archived).length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">Casos Archivados:</td>
+										<td colspan="3"><b>${tickets.filter(t => t.archived).length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">Nuevas solicitudes (recibida):</td>
+										<td colspan="3"><b>${tickets.filter(t => t.status === 'recibida').length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">En revisión:</td>
+										<td colspan="3"><b>${tickets.filter(t => t.status === 'en revision').length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">En proceso:</td>
+										<td colspan="3"><b>${tickets.filter(t => t.status === 'en proceso').length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">Finalizados (RMA exitoso):</td>
+										<td colspan="3"><b>${tickets.filter(t => t.status === 'finalizada').length}</b></td>
+									</tr>
+									<tr>
+										<td colspan="3">Rechazados:</td>
+										<td colspan="3"><b>${tickets.filter(t => t.status === 'rechazada').length}</b></td>
+									</tr>
+									<tr style="height: 25px;">
+										<td colspan="20" style="border: none; background-color: #ffffff;"></td>
+									</tr>
+								</tbody>
+							</table>
+
+							<table>
 								<thead>
 									<tr>
 										<th>Ticket / Código</th>
@@ -2025,12 +2501,16 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 										<th>Teléfono</th>
 										<th>Ciudad</th>
 										<th>Departamento</th>
+										<th>Producto</th>
+										<th>Marca</th>
 										<th>Serial (S/N)</th>
 										<th>Estado</th>
 										<th>Tipo de Resolución</th>
 										<th>Comentario de Resolución</th>
 										<th>Solución Cliente</th>
+										<th>Transacción Cliente</th>
 										<th>Solución Empresa / Proveedor</th>
+										<th>Transacción Proveedor</th>
 										<th>Descripción del Inconveniente</th>
 										<th>Factura</th>
 										<th>Evidencias</th>
@@ -2072,6 +2552,51 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					// @ts-ignore
 					const archivedTicketsFiltered = (window.ALL_TICKETS || []).filter(t => t.archived && visibleTicketNumbers.includes(t.ticket_number));
 					exportToExcelHTML('RMA_Archivados_Filtrados.xls', archivedTicketsFiltered);
+				});
+
+				// Advanced Excel report click handler
+				document.getElementById('generate-adv-report-btn')?.addEventListener('click', () => {
+					const scope = (document.getElementById('report-scope') as HTMLSelectElement)?.value || 'all';
+					const status = (document.getElementById('report-status') as HTMLSelectElement)?.value || 'all';
+					const startDateVal = (document.getElementById('report-start-date') as HTMLInputElement)?.value;
+					const endDateVal = (document.getElementById('report-end-date') as HTMLInputElement)?.value;
+
+					// @ts-ignore
+					let tickets = window.ALL_TICKETS || [];
+
+					if (scope === 'active') {
+						tickets = tickets.filter((t: any) => !t.archived);
+					} else if (scope === 'archived') {
+						tickets = tickets.filter((t: any) => t.archived);
+					}
+
+					if (status !== 'all') {
+						tickets = tickets.filter((t: any) => t.status === status);
+					}
+
+					if (startDateVal) {
+						const startLimit = new Date(startDateVal + "T00:00:00").getTime();
+						tickets = tickets.filter((t: any) => new Date(t.createdAt).getTime() >= startLimit);
+					}
+					if (endDateVal) {
+						const endLimit = new Date(endDateVal + "T23:59:59").getTime();
+						tickets = tickets.filter((t: any) => new Date(t.createdAt).getTime() <= endLimit);
+					}
+
+					let filename = 'Reporte_RMA';
+					if (scope !== 'all') filename += `_${scope.toUpperCase()}`;
+					if (status !== 'all') filename += `_${status.replace(' ', '_').toUpperCase()}`;
+					if (startDateVal || endDateVal) filename += '_Filtrado';
+					filename += '.xls';
+
+					exportToExcelHTML(filename, tickets);
+
+					const modalEl = document.getElementById('advancedReportModal');
+					if (modalEl) {
+						// @ts-ignore
+						const modal = bootstrap.Modal.getInstance(modalEl);
+						modal?.hide();
+					}
 				});
 
 				// Initial execution

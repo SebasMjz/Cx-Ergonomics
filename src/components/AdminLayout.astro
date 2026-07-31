@@ -42,18 +42,6 @@ const { title, active = '', heading, subheading = '', session } = Astro.props;
 			.sidebar-content { flex: 1 1 auto !important; overflow-y: auto; min-height: 0; }
 			.sidebar-footer { flex: 0 0 auto !important; }
 			.sidebar-footer #logout-button { white-space: nowrap; }
-			/* Estados del sidebar colapsado (replicado de rma) */
-			.sidebar.sidebar-mini:not(.open) .normal-logo,
-			.sidebar.sidebar-mini:not(.open) .brand-name { display: none !important; }
-			.sidebar.sidebar-mini:not(.open) .mini-logo { display: block !important; }
-			.sidebar.sidebar-mini:not(.open) .sidebar-header { justify-content: center !important; }
-			.sidebar.sidebar-mini:not(.open) .toggle-mini { display: none !important; }
-			.sidebar.sidebar-mini.open .mini-logo { display: none !important; }
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer > div:first-child { display: none !important; }
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer { padding: 0.75rem 0.5rem !important; display: flex; justify-content: center; }
-			.sidebar.sidebar-mini:not(.open) #logout-button { width: 40px !important; height: 40px !important; padding: 0 !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-			.sidebar.sidebar-mini:not(.open) #logout-button span { display: none !important; }
-			.sidebar.sidebar-mini:not(.open) .sidebar-footer #logout-button i { display: inline-block !important; margin: 0 !important; font-size: 1.15rem !important; }
 		</style>
 	</head>
 	<body>

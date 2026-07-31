@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// 2. Parse Request Body
 		const body = await request.json();
-		const { ticketNumber, status, orderedNumbers } = body;
+		const { ticketNumber, status, orderedNumbers, clientTransactionNumber, supplierTransactionNumber } = body;
 
 		if (!ticketNumber || !status) {
 			return new Response(JSON.stringify({ error: 'Número de ticket y estado son obligatorios' }), {
@@ -27,14 +27,14 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		if (status !== 'recibida' && status !== 'en proceso' && status !== 'finalizada') {
+		if (status !== 'recibida' && status !== 'en proceso' && status !== 'en revision' && status !== 'finalizada' && status !== 'rechazada') {
 			return new Response(JSON.stringify({ error: 'Estado de ticket inválido' }), {
 				status: 400,
 				headers: { 'content-type': 'application/json; charset=utf-8' },
 			});
 		}
 
-		// 2b. Datos de resolución obligatorios al finalizar
+		// 2b. Datos de resolución obligatorios al finalizar o rechazar
 		const resolutionLabels: Record<string, string> = {
 			rechazo: 'Rechazo',
 			descuento: 'Descuento',
@@ -42,11 +42,13 @@ export const POST: APIRoute = async ({ request }) => {
 		};
 		let resolutionUpdate: Record<string, string> = {};
 
-		if (status === 'finalizada') {
-			const resolutionType = String(body.resolutionType || '').trim();
+		if (status === 'finalizada' || status === 'rechazada') {
+			const resolutionType = status === 'rechazada' ? 'rechazo' : String(body.resolutionType || '').trim();
 			const mainComment = String(body.mainComment || '').trim();
 			const clientSolution = String(body.clientSolution || '').trim();
 			const supplierSolution = String(body.supplierSolution || '').trim();
+			const clientTransaction = String(clientTransactionNumber || '').trim();
+			const supplierTransaction = String(supplierTransactionNumber || '').trim();
 
 			if (!resolutionLabels[resolutionType]) {
 				return new Response(
@@ -56,7 +58,7 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 			if (!mainComment) {
 				return new Response(
-					JSON.stringify({ error: 'El comentario principal de la resolución es obligatorio.' }),
+					JSON.stringify({ error: 'El comentario o motivo de resolución es obligatorio.' }),
 					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
 				);
 			}
@@ -74,21 +76,43 @@ export const POST: APIRoute = async ({ request }) => {
 				resolution_main_comment: mainComment,
 				client_solution: clientSolution,
 				supplier_solution: supplierSolution,
+				client_transaction_number: clientTransaction,
+				supplier_transaction_number: supplierTransaction,
 			};
 		}
 
 		// 3. Connect to Database
 		await connectMongoose();
 
+		const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
+		if (!ticket) {
+			return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
+				status: 404,
+				headers: { 'content-type': 'application/json; charset=utf-8' },
+			});
+		}
+
+		// Validación: No está permitido mover un ticket a un estado anterior de manera manual
+		const statusOrderMap: Record<string, number> = {
+			recibida: 0,
+			'en revision': 1,
+			'en proceso': 2,
+			finalizada: 3,
+			rechazada: 3,
+		};
+
+		const currentIndex = statusOrderMap[ticket.status] ?? 0;
+		const targetIndex = statusOrderMap[status] ?? 0;
+
+		if (targetIndex < currentIndex) {
+			return new Response(
+				JSON.stringify({ error: 'No está permitido mover un ticket a un estado anterior de manera manual.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		// Enforce mandatory steps if updating status to finalizada and not rejected
 		if (status === 'finalizada') {
-			const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
-			if (!ticket) {
-				return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
-					status: 404,
-					headers: { 'content-type': 'application/json; charset=utf-8' },
-				});
-			}
 			const resolutionType = String(body.resolutionType || '').trim();
 			if (resolutionType !== 'rechazo') {
 				if (!ticket.step_left_at_branch || !ticket.step_sent_to_distributor || !ticket.step_resolved) {
@@ -105,12 +129,16 @@ export const POST: APIRoute = async ({ request }) => {
 		// 4. Update Ticket and Push History Entry
 		const phaseLabels = {
 			recibida: 'Nuevas solicitudes',
+			'en revision': 'En revisión',
 			'en proceso': 'En proceso',
 			finalizada: 'Finalizadas',
+			rechazada: 'Rechazadas',
 		};
 		const statusLabel = phaseLabels[status as keyof typeof phaseLabels];
-		let note = `${session.name} actualizó a "${statusLabel}" el ticket #${ticketNumber}`;
-		if (status === 'finalizada') {
+		let note = ticket.status === status
+			? `${session.name} editó la resolución del ticket #${ticketNumber}`
+			: `${session.name} actualizó a "${statusLabel}" el ticket #${ticketNumber}`;
+		if (status === 'finalizada' || status === 'rechazada') {
 			note += ` — Resolución: ${resolutionLabels[resolutionUpdate.resolution_type]}. ${resolutionUpdate.resolution_main_comment}`;
 		}
 
@@ -128,7 +156,7 @@ export const POST: APIRoute = async ({ request }) => {
 		// En un rechazo, dejamos también una nota EXTERNA visible para el cliente en su
 		// vista de seguimiento, con el motivo. Así sabe por qué se rechazó y puede reenviar
 		// evidencia en el mismo ticket.
-		if (status === 'finalizada' && resolutionUpdate.resolution_type === 'rechazo') {
+		if ((status === 'finalizada' || status === 'rechazada') && resolutionUpdate.resolution_type === 'rechazo') {
 			historyItems.push({
 				status,
 				note: `Tu solicitud fue rechazada. Motivo: ${resolutionUpdate.resolution_main_comment}`,

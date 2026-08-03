@@ -5,7 +5,6 @@ import { UserModel } from '../../../lib/models/User';
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		// 1. Verify User Session & Role
 		const token = readCookieValue(request.headers.get('cookie'), 'cx_auth');
 		const session = token ? verifyAuthToken(token) : null;
 
@@ -16,64 +15,51 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// 2. Parse Request Body
 		const body = await request.json();
-		const { name, email, password, role } = body;
+		const { userId } = body;
 
-		if (!name || !email || !password || !role) {
-			return new Response(JSON.stringify({ error: 'Todos los campos son obligatorios' }), {
+		if (!userId) {
+			return new Response(JSON.stringify({ error: 'ID de usuario es obligatorio.' }), {
 				status: 400,
 				headers: { 'content-type': 'application/json; charset=utf-8' },
 			});
 		}
 
-		if (role !== 'admin' && role !== 'technical') {
-			return new Response(JSON.stringify({ error: 'Perfil de usuario inválido (admin o technical)' }), {
+		if (userId === session.sub) {
+			return new Response(JSON.stringify({ error: 'No puedes desactivar tu propia cuenta.' }), {
 				status: 400,
 				headers: { 'content-type': 'application/json; charset=utf-8' },
 			});
 		}
 
-		// 3. Connect to Database
 		await connectMongoose();
 
-		// Check duplicate email
-		const existingUser = await UserModel.findOne({ email: email.toLowerCase() });
-		if (existingUser) {
-			return new Response(JSON.stringify({ error: 'El correo electrónico ya está registrado.' }), {
-				status: 400,
+		const user = await UserModel.findById(userId);
+		if (!user) {
+			return new Response(JSON.stringify({ error: 'Usuario no encontrado.' }), {
+				status: 404,
 				headers: { 'content-type': 'application/json; charset=utf-8' },
 			});
 		}
 
-		// 4. Create User
-		const newUser = await UserModel.create({
-			name,
-			email: email.toLowerCase(),
-			password,
-			role,
-			is_active: true,
-			must_change_password: true,
-		});
+		// Toggle status
+		user.is_active = !user.is_active;
+		await user.save();
 
 		return new Response(
 			JSON.stringify({
 				success: true,
-				user: {
-					id: newUser._id,
-					name: newUser.name,
-					email: newUser.email,
-					role: newUser.role,
-				},
+				is_active: user.is_active,
+				message: `Usuario ${user.name} ${user.is_active ? 'activado' : 'desactivado'}.`,
 			}),
 			{
-				status: 201,
+				status: 200,
 				headers: { 'content-type': 'application/json; charset=utf-8' },
 			}
 		);
 	} catch (error: any) {
-		console.error('Error in user creation API:', error);
-		return new Response(JSON.stringify({ error: error.message || 'Error interno del servidor' }), {
+		console.error('Error in toggle-active user API:', error);
+		return new Response(JSON.stringify({ error: error.message || 'Error al cambiar estado de usuario' }), {
 			status: 500,
 			headers: { 'content-type': 'application/json; charset=utf-8' },
 		});

@@ -5,6 +5,7 @@ export interface AuthTokenPayload {
 	name: string;
 	email: string;
 	role: 'admin' | 'technical';
+	must_change_password?: boolean;
 	iat: number;
 	exp: number;
 }

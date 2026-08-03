@@ -6,7 +6,7 @@ interface Props {
 	active?: string;
 	heading: string;
 	subheading?: string;
-	session: { name: string; role: 'admin' | 'technical' };
+	session: { name: string; role: 'admin' | 'technical'; must_change_password?: boolean };
 	headExtra?: string;
 }
 
@@ -75,6 +75,69 @@ const { title, active = '', heading, subheading = '', session } = Astro.props;
 				</div>
 			</main>
 		</div>
+
+		{session.must_change_password && (
+			<div class="modal fade show" id="mustChangePasswordModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" style="display: block; background: rgba(0,0,0,0.65);" aria-modal="true" role="dialog">
+				<div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+					<div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+						<form id="must-change-pass-form">
+							<div class="modal-header bg-dark text-white py-3">
+								<h5 class="modal-title fw-bold fs-6"><i class="ri-shield-keyhole-line me-2 text-warning"></i>Cambio Obligatorio de Contraseña</h5>
+							</div>
+							<div class="modal-body p-4">
+								<p class="small text-muted mb-3">Es tu primer inicio de sesión. Por motivos de seguridad, debes establecer una contraseña propia para continuar.</p>
+								<div class="mb-3">
+									<label for="must-new-password" class="form-label small fw-bold text-muted">Nueva Contraseña</label>
+									<input type="password" class="form-control" id="must-new-password" required minlength="6" placeholder="Mínimo 6 caracteres" />
+								</div>
+								<div class="mb-3">
+									<label for="must-confirm-password" class="form-label small fw-bold text-muted">Confirmar Nueva Contraseña</label>
+									<input type="password" class="form-control" id="must-confirm-password" required minlength="6" placeholder="Repite la contraseña" />
+								</div>
+								<div id="must-pass-error" class="alert alert-danger d-none py-2 small mb-0"></div>
+							</div>
+							<div class="modal-footer bg-light p-3">
+								<button type="submit" class="btn btn-dark w-100 py-2.5 rounded-pill fw-bold" id="must-pass-submit-btn">
+									<i class="ri-check-line me-1"></i> Actualizar Contraseña y Continuar
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+			<script is:inline>
+				document.getElementById('must-change-pass-form')?.addEventListener('submit', async (e) => {
+					e.preventDefault();
+					const errEl = document.getElementById('must-pass-error');
+					const pass = document.getElementById('must-new-password').value;
+					const confirm = document.getElementById('must-confirm-password').value;
+					const btn = document.getElementById('must-pass-submit-btn');
+
+					if (errEl) errEl.classList.add('d-none');
+					if (pass !== confirm) {
+						if (errEl) { errEl.textContent = 'Las contraseñas no coinciden.'; errEl.classList.remove('d-none'); }
+						return;
+					}
+
+					try {
+						btn.disabled = true;
+						btn.textContent = 'Guardando...';
+						const res = await fetch('/api/users/change-password', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({ newPassword: pass }),
+						});
+						const data = await res.json();
+						if (!res.ok) throw new Error(data.error || 'Error al actualizar contraseña');
+						window.location.reload();
+					} catch (err) {
+						btn.disabled = false;
+						btn.textContent = 'Actualizar Contraseña y Continuar';
+						if (errEl) { errEl.textContent = err.message; errEl.classList.remove('d-none'); }
+					}
+				});
+			</script>
+		)}
 
 		<slot name="scripts" />
 		<script src="/js/main.js" type="module" is:inline></script>

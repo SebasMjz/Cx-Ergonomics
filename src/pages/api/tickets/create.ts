@@ -20,6 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
 			storeManagerPhone,
 			issueDescription,
 			salesReceiptImage,
+			productSnImage,
 			evidenceVideo,
 		} = body;
 
@@ -34,10 +35,11 @@ export const POST: APIRoute = async ({ request }) => {
 			!productBrand ||
 			!issueDescription ||
 			!salesReceiptImage ||
+			!productSnImage ||
 			!evidenceVideo
 		) {
 			return new Response(
-				JSON.stringify({ error: 'Todos los campos son obligatorios, incluyendo los archivos de factura y evidencia.' }),
+				JSON.stringify({ error: 'Todos los campos son obligatorios, incluyendo factura, foto de S/N producto+caja y evidencia.' }),
 				{
 					status: 400,
 					headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -45,13 +47,12 @@ export const POST: APIRoute = async ({ request }) => {
 			);
 		}
 
-		// Si lo registra un usuario logueado (admin/técnico en sucursal), el ticket entra
-		// directamente "en proceso": el cliente trajo el producto y nosotros lo recibimos.
+		// Todos los tickets inician en "recibida" (Nueva solicitud)
 		const session = getSession(request);
 		const isStaff = !!session;
-		const initialStatus: 'recibida' | 'en proceso' = isStaff ? 'en proceso' : 'recibida';
+		const initialStatus: 'recibida' = 'recibida';
 		const initialNote = isStaff
-			? `Solicitud registrada en sucursal por ${session!.name}. Producto recibido para revisión.`
+			? `Solicitud registrada en sucursal por ${session!.name}.`
 			: 'Ticket registrado por el cliente';
 
 		// 2. Connect to Database
@@ -103,6 +104,7 @@ export const POST: APIRoute = async ({ request }) => {
 					store_manager_name: storeManagerName || '',
 					store_manager_phone: storeManagerPhone || '',
 					sales_receipt_image: salesReceiptImage,
+					product_sn_image: productSnImage || '',
 					issue_description: issueDescription,
 					evidence_video: evidenceVideo,
 					status: initialStatus,

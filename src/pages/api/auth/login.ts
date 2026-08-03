@@ -47,6 +47,7 @@ export const POST: APIRoute = async ({ request }) => {
 			name: user.name,
 			email: user.email,
 			role: user.role,
+			must_change_password: !!user.must_change_password,
 		});
 
 		return new Response(
@@ -56,6 +57,7 @@ export const POST: APIRoute = async ({ request }) => {
 					name: user.name,
 					email: user.email,
 					role: user.role,
+					must_change_password: !!user.must_change_password,
 				},
 				token,
 			}),

@@ -436,18 +436,12 @@ async function seedBanners() {
 async function run() {
 	await connectMongoose();
 	const credentials = await seedUsers();
-	const categories = await seedCategories();
-	const tags = await seedTags();
-	await seedProducts(categories, tags);
-	await seedTickets();
 	await seedBanners();
-	await seedPointsOfSale();
 	await seedFaqs();
-	await seedWallpapers();
 	await seedSettings();
 
-	console.log('Seed completado. Credenciales:');
-	console.log(`Categorias creadas/validadas: ${categories.size}`);
+	console.log('Seed completado exitosamente con configuraciones iniciales.');
+	console.log('Credenciales de acceso:');
 	for (const entry of credentials) {
 		console.log(`- ${entry.role}: ${entry.email} / ${entry.password}`);
 	}

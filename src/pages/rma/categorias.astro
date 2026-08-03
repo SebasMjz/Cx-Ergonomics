@@ -102,9 +102,14 @@ const categories = await CategoryModel.find().sort({ createdAt: -1 }).lean();
 						<textarea class="form-control" id="category-description" rows="2" placeholder="Breve descripción de la línea de productos..."></textarea>
 					</div>
 					<div class="mb-3">
-						<label class="form-label small fw-bold text-muted">Ruta o URL de Imagen de Portada</label>
-						<input type="text" class="form-control" id="category-image" placeholder="Ej. /uploads/products/mi-imagen.png" />
-						<div class="form-text" style="font-size: 0.72rem;">Sube las imágenes a Render en <code>/uploads/products/</code> e ingresa la ruta relativa aquí.</div>
+						<label class="form-label small fw-bold text-muted">Imagen de Portada</label>
+						<div class="border border-2 border-dashed rounded-3 p-3 text-center" id="cat-drop" style="cursor:pointer;">
+							<img id="cat-preview" src="" alt="" class="img-fluid rounded mb-2 d-none" style="max-height: 140px;" />
+							<div id="cat-drop-text"><i class="ri-upload-cloud-2-line fs-3 d-block text-muted"></i><span class="small text-muted">Haz clic o arrastra una imagen aquí</span></div>
+							<input type="file" id="cat-file" class="d-none" accept="image/*" />
+						</div>
+						<div class="progress mt-2 d-none" id="cat-progress" style="height:6px;"><div class="progress-bar bg-dark" id="cat-progress-bar" style="width:0%"></div></div>
+						<input type="hidden" id="category-image" />
 					</div>
 					<div class="form-check">
 						<input type="checkbox" class="form-check-input" id="category-active" checked />
@@ -131,6 +136,51 @@ const categories = await CategoryModel.find().sort({ createdAt: -1 }).lean();
 			const elActive = document.getElementById('category-active');
 			const elError = document.getElementById('category-error');
 			const elTitle = document.getElementById('categoryModalTitle');
+
+			const drop = document.getElementById('cat-drop');
+			const fileInput = document.getElementById('cat-file');
+			const preview = document.getElementById('cat-preview');
+			const dropText = document.getElementById('cat-drop-text');
+			const progress = document.getElementById('cat-progress');
+			const progressBar = document.getElementById('cat-progress-bar');
+
+			function uploadFile(file) {
+				return new Promise((resolve, reject) => {
+					const fd = new FormData();
+					fd.append('file', file);
+					const xhr = new XMLHttpRequest();
+					xhr.open('POST', '/api/catalog/categories/upload');
+					xhr.upload.addEventListener('progress', (e) => {
+						if (e.lengthComputable) progressBar.style.width = `${Math.round((e.loaded * 100) / e.total)}%`;
+					});
+					xhr.addEventListener('load', () => {
+						if (xhr.status === 201) {
+							const r = JSON.parse(xhr.responseText);
+							resolve(r.url || r.path);
+						} else {
+							try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error('Error al subir la imagen')); }
+						}
+					});
+					xhr.addEventListener('error', () => reject(new Error('Error de red')));
+					xhr.send(fd);
+				});
+			}
+
+			drop.addEventListener('click', () => fileInput.click());
+			fileInput.addEventListener('change', async () => {
+				const file = fileInput.files && fileInput.files[0];
+				if (!file) return;
+				elError.classList.add('d-none');
+				progress.classList.remove('d-none');
+				try {
+					const imageUrl = await uploadFile(file);
+					elImg.value = imageUrl;
+					preview.src = imageUrl;
+					preview.classList.remove('d-none');
+					dropText.classList.add('d-none');
+				} catch (err) { elError.textContent = err.message; elError.classList.remove('d-none'); }
+				finally { progress.classList.add('d-none'); progressBar.style.width = '0%'; }
+			});
 
 			function showToast(message, type = 'danger') {
 				const toastEl = document.getElementById('app-toast');
@@ -159,6 +209,14 @@ const categories = await CategoryModel.find().sort({ createdAt: -1 }).lean();
 				elName.value = data ? data.name : '';
 				elDesc.value = data ? data.description : '';
 				elImg.value = data ? data.image : '';
+				if (elImg.value) {
+					preview.src = elImg.value;
+					preview.classList.remove('d-none');
+					dropText.classList.add('d-none');
+				} else {
+					preview.classList.add('d-none');
+					dropText.classList.remove('d-none');
+				}
 				elActive.checked = data ? data.active : true;
 				elTitle.textContent = data ? 'Editar categoría' : 'Nueva categoría';
 				bs().Modal.getOrCreateInstance(modalEl).show();

@@ -1,17 +1,37 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs';
 import path from 'path';
+import { getUploadsRoot, getCatalogUploadsRoot } from '../../lib/uploads/config';
 
 export const GET: APIRoute = ({ params, request }) => {
 	try {
-		const uploadsRoot = process.env.UPLOADS_DIR
-			? path.resolve(process.env.UPLOADS_DIR)
-			: path.resolve(process.cwd(), 'uploads');
+		const uploadsRoot = getUploadsRoot();
+		const catalogRoot = getCatalogUploadsRoot();
+		const rawPath = params.path || '';
+		const cleanPath = rawPath.replace(/^catalogo\//, '');
 
-		const filePath = path.resolve(uploadsRoot, params.path || '');
+		let filePath = path.resolve(uploadsRoot, rawPath);
 
-		// Secure directory traversal check
-		if (!filePath.startsWith(uploadsRoot) || !fs.existsSync(filePath)) {
+		// Fallback lookup if file is not found at primary path
+		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+			const altCandidates = [
+				path.resolve(catalogRoot, cleanPath),
+				path.resolve(catalogRoot, rawPath),
+				path.resolve(uploadsRoot, cleanPath),
+				path.resolve(process.cwd(), 'catalogo', cleanPath),
+				path.resolve(process.cwd(), 'uploads', cleanPath),
+				path.resolve(process.cwd(), 'public', 'uploads', cleanPath),
+			];
+			for (const alt of altCandidates) {
+				if (fs.existsSync(alt) && fs.statSync(alt).isFile()) {
+					filePath = alt;
+					break;
+				}
+			}
+		}
+
+		// Check if file exists and is readable file
+		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
 			return new Response('File Not Found', { status: 404 });
 		}
 

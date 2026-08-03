@@ -3,7 +3,7 @@
 // Se reutiliza en /rma y en todas las páginas de gestión.
 interface Props {
 	active?: string;
-	session: { name: string; role: 'admin' | 'technical' };
+	session: { name: string; role: 'admin' | 'technical'; must_change_password?: boolean };
 }
 
 const { active = '', session } = Astro.props;
@@ -88,6 +88,20 @@ const catalogo = [
 	</div>
 
 	<div class="sidebar-footer p-3 border-top bg-body-tertiary">
+		<!-- Botón Cambiar Contraseña ubicado directamente ARRIBA de los datos del usuario -->
+		<button
+			type="button"
+			class={`btn btn-xs w-100 py-1.5 mb-2.5 rounded-pill fw-bold d-flex align-items-center justify-content-center gap-1.5 ${
+				session.must_change_password ? 'btn-warning text-dark border-warning shadow-sm' : 'btn-outline-secondary'
+			}`}
+			id="sidebar-change-pass-btn"
+			data-must-change={session.must_change_password ? 'true' : 'false'}
+			style="font-size: 0.76rem;"
+		>
+			<i class="ri-key-2-line"></i>
+			<span>{session.must_change_password ? '⚠️ Cambiar Contraseña (Obligatorio)' : 'Cambiar Contraseña'}</span>
+		</button>
+
 		<div class="d-flex align-items-center gap-2 mb-3">
 			<i class="ri-user-heart-line text-dark fs-5"></i>
 			<div>
@@ -105,10 +119,116 @@ const catalogo = [
 	</div>
 </aside>
 
+<!-- Modal Cambiar Contraseña -->
+<div class="modal fade" id="sidebarChangePassModal" tabindex="-1" aria-labelledby="sidebarChangePassModalLabel" aria-hidden="true" data-bs-backdrop={session.must_change_password ? 'static' : 'true'} data-bs-keyboard={session.must_change_password ? 'false' : 'true'}>
+	<div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+		<div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+			<form id="sidebar-change-pass-form">
+				<div class="modal-header bg-dark text-white py-3 border-0">
+					<h5 class="modal-title fw-bold fs-6" id="sidebarChangePassModalLabel">
+						<i class="ri-key-2-line me-2 text-warning"></i>
+						{session.must_change_password ? 'Cambio Obligatorio de Contraseña' : 'Cambiar Contraseña'}
+					</h5>
+					{!session.must_change_password && (
+						<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+					)}
+				</div>
+				<div class="modal-body p-4 bg-body-tertiary">
+					{session.must_change_password && (
+						<div class="alert alert-warning py-2.5 px-3 small border-0 shadow-sm rounded-3 mb-3.5 d-flex align-items-center gap-2">
+							<i class="ri-alert-line fs-5 flex-shrink-0 text-warning"></i>
+							<span style="font-size: 0.82rem; line-height: 1.35;">Es tu primer ingreso al sistema. Por tu seguridad, debes cambiar tu contraseña inicial antes de continuar.</span>
+						</div>
+					)}
+					<div class="mb-3">
+						<label for="sidebar-new-pass" class="form-label small fw-bold text-muted mb-1">Nueva Contraseña</label>
+						<input type="password" class="form-control rounded-3 shadow-none" id="sidebar-new-pass" required minlength="6" placeholder="Mínimo 6 caracteres" />
+					</div>
+					<div class="mb-3">
+						<label for="sidebar-confirm-pass" class="form-label small fw-bold text-muted mb-1">Confirmar Nueva Contraseña</label>
+						<input type="password" class="form-control rounded-3 shadow-none" id="sidebar-confirm-pass" required minlength="6" placeholder="Repite la contraseña" />
+					</div>
+					<div id="sidebar-pass-error" class="alert alert-danger d-none py-2 px-3 small rounded-3 mb-0"></div>
+				</div>
+				<div class="modal-footer bg-white border-top p-3 d-flex justify-content-between">
+					{!session.must_change_password && (
+						<button type="button" class="btn btn-sm btn-light border rounded-pill px-3.5 fw-semibold text-muted" data-bs-dismiss="modal">
+							Cancelar
+						</button>
+					)}
+					<button type="submit" class="btn btn-sm btn-dark rounded-pill px-4 fw-bold ms-auto" id="sidebar-pass-submit-btn">
+						<i class="ri-check-line me-1 text-success"></i> Actualizar Contraseña
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
 <script>
-	// Cierre de sesión: disponible en todas las páginas que usan este sidebar.
-	document.getElementById('logout-button')?.addEventListener('click', async () => {
-		await fetch('/api/auth/logout', { method: 'POST' });
-		window.location.href = '/login';
+	// Cierre de sesión y cambio de contraseña
+	document.addEventListener('DOMContentLoaded', () => {
+		document.getElementById('logout-button')?.addEventListener('click', async () => {
+			await fetch('/api/auth/logout', { method: 'POST' });
+			window.location.href = '/login';
+		});
+
+		const btn = document.getElementById('sidebar-change-pass-btn');
+		const modalEl = document.getElementById('sidebarChangePassModal');
+		const isMustChange = btn?.getAttribute('data-must-change') === 'true';
+
+		if (modalEl) {
+			// @ts-ignore
+			const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+			// Si es el primer ingreso obligar apertura inmediata
+			if (isMustChange) {
+				modal.show();
+			}
+
+			btn?.addEventListener('click', () => {
+				modal.show();
+			});
+
+			document.getElementById('sidebar-change-pass-form')?.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				const errEl = document.getElementById('sidebar-pass-error');
+				const newPass = (document.getElementById('sidebar-new-pass') as HTMLInputElement).value;
+				const confirmPass = (document.getElementById('sidebar-confirm-pass') as HTMLInputElement).value;
+				const submitBtn = document.getElementById('sidebar-pass-submit-btn') as HTMLButtonElement;
+
+				if (errEl) errEl.classList.add('d-none');
+
+				if (newPass !== confirmPass) {
+					if (errEl) {
+						errEl.textContent = 'Las contraseñas no coinciden.';
+						errEl.classList.remove('d-none');
+					}
+					return;
+				}
+
+				try {
+					submitBtn.disabled = true;
+					submitBtn.textContent = 'Guardando...';
+
+					const res = await fetch('/api/users/change-password', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ newPassword: newPass }),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al actualizar contraseña');
+
+					window.location.reload();
+				} catch (err: any) {
+					submitBtn.disabled = false;
+					submitBtn.innerHTML = '<i class="ri-check-line me-1 text-success"></i> Actualizar Contraseña';
+					if (errEl) {
+						errEl.textContent = err.message;
+						errEl.classList.remove('d-none');
+					}
+				}
+			});
+		}
 	});
 </script>

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAdmin, json } from '../../../../lib/api';
+import { getCatalogUploadsRoot } from '../../../../lib/uploads/config';
 
 export const POST: APIRoute = async ({ request }) => {
 	const auth = requireAdmin(request);
@@ -19,10 +20,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const arrayBuffer = await file.arrayBuffer();
 		const buffer = Buffer.from(arrayBuffer);
 
-		const uploadsRoot = process.env.UPLOADS_DIR
-			? path.resolve(process.env.UPLOADS_DIR)
-			: path.resolve(process.cwd(), 'uploads');
-		const targetDir = path.join(uploadsRoot, 'products');
+		const catalogRoot = getCatalogUploadsRoot();
+		const targetDir = path.join(catalogRoot, 'products');
 
 		fs.mkdirSync(targetDir, { recursive: true });
 
@@ -32,9 +31,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 		fs.writeFileSync(filePath, buffer);
 
-		const relative = path.relative(uploadsRoot, filePath);
+		const relative = path.relative(catalogRoot, filePath);
 		const normalized = relative.split(path.sep).join('/');
-		const publicPath = `/uploads/${normalized}`;
+		const publicPath = `/uploads/catalogo/${normalized}`;
 
 		const publicSiteUrl = process.env.PUBLIC_SITE_URL || 'http://localhost:4321';
 		const publicUrl = new URL(publicPath, publicSiteUrl).toString();

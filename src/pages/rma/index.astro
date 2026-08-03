@@ -1669,7 +1669,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					}, { offset: Number.NEGATIVE_INFINITY } as { offset: number; element: Element | null }).element;
 				}
 
-				draggables.forEach(draggable => {
+				document.querySelectorAll('.draggable-ticket').forEach(draggable => {
 					if (draggable instanceof HTMLElement) {
 						draggable.addEventListener('dragstart', (e) => {
 							draggable.classList.add('dragging');
@@ -1851,10 +1851,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				}, 300000);
 
 				// Kanban Drag-and-Drop Event Handlers
-				const draggables = document.querySelectorAll('.draggable-ticket');
-				const columns = document.querySelectorAll('.lane-column');
-
-				columns.forEach(column => {
+				document.querySelectorAll('.lane-column').forEach(column => {
 					column.addEventListener('dragover', (e) => {
 						e.preventDefault();
 						column.classList.add('bg-secondary-subtle');
@@ -2998,7 +2995,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							const absReceiptUrl = t.sales_receipt_image.startsWith('http') 
 								? t.sales_receipt_image 
 								: window.location.origin + t.sales_receipt_image;
-							receiptHtml = `<a href="${absReceiptUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">Ver Factura/Recibo</a>`;
+							receiptHtml = `<a href="${absReceiptUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">${absReceiptUrl}</a>`;
 						}
 
 						// Process S/N photo
@@ -3007,20 +3004,22 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							const absSnUrl = t.product_sn_image.startsWith('http') 
 								? t.product_sn_image 
 								: window.location.origin + t.product_sn_image;
-							snHtml = `<a href="${absSnUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">Ver Foto S/N</a>`;
+							snHtml = `<a href="${absSnUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">${absSnUrl}</a>`;
 						}
 
-						// Process evidence files (images or videos)
+						// Process evidence files (images or videos) - Formato 1 : link, 2 : link
 						let evidenceHtml = '—';
 						if (t.evidence_video) {
 							const urls = t.evidence_video.split(',').filter(Boolean);
-							evidenceHtml = urls.map((url: string, idx: number) => {
-								const absUrl = url.startsWith('http') ? url : window.location.origin + url;
-								const ext = (url.split('.').pop() || '').toLowerCase();
-								const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
-								const label = isVideo ? `Video ${idx + 1}` : `Foto ${idx + 1}`;
-								return `<a href="${absUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">Ver ${label}</a>`;
-							}).join('&nbsp;&nbsp;');
+							if (urls.length === 1) {
+								const absUrl = urls[0].startsWith('http') ? urls[0] : window.location.origin + urls[0];
+								evidenceHtml = `<a href="${absUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">${absUrl}</a>`;
+							} else {
+								evidenceHtml = urls.map((url: string, idx: number) => {
+									const absUrl = url.startsWith('http') ? url : window.location.origin + url;
+									return `<div>${idx + 1} : <a href="${absUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">${absUrl}</a></div>`;
+								}).join('');
+							}
 						}
 
 						tableRows += `

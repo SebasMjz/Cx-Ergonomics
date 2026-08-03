@@ -1,12 +1,41 @@
+version: '3.8'
+
 services:
   mongo:
-    image: mongo:7
-    container_name: cx-importations-mongo
-    restart: unless-stopped
+    image: mongo:7.0
+    container_name: cx-mongodb
+    restart: always
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: cx-ergonomics
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cx-web-app
+    restart: always
+    ports:
+      - "4321:4321"
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 4321
+      MONGODB_URI: mongodb://mongo:27017/cx-ergonomics
+      UPLOADS_DIR: /app/uploads
+      PUBLIC_SITE_URL: http://localhost:4321
+      JWT_SECRET: ${JWT_SECRET:-super-secret-key-production-change-me}
+      ADMIN_INITIAL_EMAIL: ${ADMIN_INITIAL_EMAIL:-admin@cxergonomic.com}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-Admin123*}
+    volumes:
+      - uploads_data:/app/uploads
 
 volumes:
   mongo_data:
+    driver: local
+  uploads_data:
+    driver: local

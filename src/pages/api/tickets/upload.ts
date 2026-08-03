@@ -29,7 +29,9 @@ export const POST: APIRoute = async ({ request, url }) => {
 
 		// Determine target directory
 		const targetDirName = kind === 'receipt' ? path.join('rma', 'receipts') : path.join('rma', 'videos');
-		const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+		const uploadsRoot = process.env.UPLOADS_DIR
+			? path.resolve(process.env.UPLOADS_DIR)
+			: path.resolve(process.cwd(), 'uploads');
 		const targetDir = path.join(uploadsRoot, targetDirName);
 
 		// Ensure directory exists

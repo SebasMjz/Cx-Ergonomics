@@ -14,17 +14,8 @@ void TagModel; // asegura el registro del modelo Tag para populate
 const settings = await getSiteSettings();
 const newDays = settings.new_badge_days ?? 30;
 
-// --- Categories (auto-seed fallback if empty) ---
+// --- Categories ---
 let categories = await CategoryModel.find({ is_active: true }).lean();
-if (categories.length === 0) {
-	const defaultCats = [
-		{ name: 'Mesas Electricas', slug: 'mesas-electricas', description: 'Mesas ergonomicas electricas para estaciones de trabajo.', image: '/uploads/products/1024-6.png' },
-		{ name: 'Brazos Monitor', slug: 'brazos-monitor', description: 'Brazos articulados para monitores simples y dobles.', image: '/uploads/products/3-3-1-Photoroom-1024x1024.png' },
-		{ name: 'Accesorios Ergonomicos', slug: 'accesorios-ergonomicos', description: 'Accesorios y complementos para puestos de trabajo.', image: '/uploads/products/4_436194dd-03ac-4c8f-a977-ad3139f101d2-1-Photoroom-1024x1024.webp' },
-	];
-	await CategoryModel.insertMany(defaultCats);
-	categories = await CategoryModel.find({ is_active: true }).lean();
-}
 
 // --- Products ---
 const products = await ProductModel.find({ is_active: true })
@@ -55,35 +46,8 @@ const featuredViews = featured.slice(0, 8).map((p) => ({
 	badges: productBadges((p.tag_ids as any[]) || [], p.createdAt, newDays),
 }));
 
-// --- Video Banners (Corsair-style hero). Auto-seed two muted YouTube heroes if empty. ---
+// --- Video Banners ---
 let banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
-if (banners.length === 0) {
-	await BannerModel.insertMany([
-		{
-			kicker: 'CX ERGONOMIC',
-			title: 'DISEÑADO PARA RENDIR',
-			subtitle: 'Estaciones de trabajo ergonomicas construidas para acompanarte cada hora del dia. Potencia, ajuste y precision en cada detalle.',
-			cta_text: 'VER CATALOGO',
-			cta_link: '/catalogo',
-			source: 'youtube',
-			video_id: '2ZhY7LfpkqQ',
-			order: 1,
-			is_active: true,
-		},
-		{
-			kicker: 'EXPERIENCIA CX',
-			title: 'TU ESPACIO, TU REGLA',
-			subtitle: 'Cada componente esta pensado para adaptarse a ti. Descubre la linea completa de mobiliario y accesorios inteligentes.',
-			cta_text: 'EXPLORAR',
-			cta_link: '/catalogo',
-			source: 'youtube',
-			video_id: 'BcrrVq7sTAk',
-			order: 2,
-			is_active: true,
-		},
-	]);
-	banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
-}
 
 // Build a muted/autoplay/loop YouTube embed URL (no sound, no controls).
 function youtubeEmbed(id: string) {

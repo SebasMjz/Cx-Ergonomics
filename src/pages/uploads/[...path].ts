@@ -4,10 +4,13 @@ import path from 'path';
 
 export const GET: APIRoute = ({ params }) => {
 	try {
-		const filePath = path.resolve(process.cwd(), 'uploads', params.path || '');
+		const uploadsRoot = process.env.UPLOADS_DIR
+			? path.resolve(process.env.UPLOADS_DIR)
+			: path.resolve(process.cwd(), 'uploads');
+
+		const filePath = path.resolve(uploadsRoot, params.path || '');
 		
 		// Secure directory traversal check
-		const uploadsRoot = path.resolve(process.cwd(), 'uploads');
 		if (!filePath.startsWith(uploadsRoot) || !fs.existsSync(filePath)) {
 			return new Response('File Not Found', { status: 404 });
 		}

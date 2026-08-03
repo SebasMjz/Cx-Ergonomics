@@ -16,11 +16,16 @@ declare global {
 	var __cxMongoosePromise: Promise<typeof mongoose> | undefined;
 }
 
+import { ensureDefaultAdminUser } from './auth/seedAdmin';
+
 export async function connectMongoose() {
 	if (!globalThis.__cxMongoosePromise) {
 		mongoose.set('strictQuery', true);
 		globalThis.__cxMongoosePromise = mongoose.connect(mongoUri, {
 			dbName: mongoDbName,
+		}).then(async (m) => {
+			await ensureDefaultAdminUser();
+			return m;
 		});
 	}
 

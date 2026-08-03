@@ -20,7 +20,9 @@ const uploadTargets: Record<UploadTarget, UploadTargetConfig> = {
 	videos: { dir: path.join('rma', 'videos'), kind: 'video' },
 };
 
-export const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+export const uploadsRoot = process.env.UPLOADS_DIR
+	? path.resolve(process.env.UPLOADS_DIR)
+	: path.resolve(process.cwd(), 'uploads');
 
 function ensureDir(targetDir: string) {
 	fs.mkdirSync(targetDir, { recursive: true });

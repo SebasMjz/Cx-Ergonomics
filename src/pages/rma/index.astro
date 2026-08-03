@@ -1262,6 +1262,34 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				updateTimeAgoLabels();
 				setInterval(updateTimeAgoLabels, 30000);
 
+				// Helper global para subir archivos (imágenes/videos/PDFs)
+				function uploadFile(file: File, kind: string = 'receipt'): Promise<string> {
+					const fd = new FormData();
+					fd.append('file', file);
+					return new Promise((resolve, reject) => {
+						const xhr = new XMLHttpRequest();
+						xhr.open('POST', `/api/tickets/upload?kind=${kind}`);
+						xhr.addEventListener('load', () => {
+							if (xhr.status === 201) {
+								try {
+									const r = JSON.parse(xhr.responseText);
+									resolve(r.path || r.url);
+								} catch {
+									reject(new Error('Respuesta inválida del servidor'));
+								}
+							} else {
+								try {
+									reject(new Error(JSON.parse(xhr.responseText).error || 'Error al subir'));
+								} catch {
+									reject(new Error('Error al subir archivo'));
+								}
+							}
+						});
+						xhr.addEventListener('error', () => reject(new Error('Error de conexión al subir archivo')));
+						xhr.send(fd);
+					});
+				}
+
 				// Hide alert dots for tickets already opened/read by staff
 				function updateClientAlertDots() {
 					let readTickets: string[] = [];
@@ -1271,9 +1299,17 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 					document.querySelectorAll('.draggable-ticket').forEach(card => {
 						const ticketNum = card.getAttribute('data-ticket-number');
-						if (ticketNum && readTickets.includes(ticketNum)) {
-							const dot = card.querySelector('.bg-danger');
-							if (dot) dot.remove();
+						// @ts-ignore
+						const ticket = window.ALL_TICKETS?.find((t: any) => t.ticket_number === ticketNum);
+						if (ticket) {
+							const lastClientMsg = ticket.history?.filter((h: any) => h.from_client).pop();
+							if (lastClientMsg) {
+								const clientKey = `${ticket.ticket_number}_${new Date(lastClientMsg.updated_at).getTime()}`;
+								if (readTickets.includes(clientKey)) {
+									const dot = card.querySelector('.bg-danger');
+									if (dot) dot.remove();
+								}
+							}
 						}
 					});
 				}
@@ -1818,7 +1854,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					if (isVideo) {
 						container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
 					} else if (isPdf) {
-						container.innerHTML = `<iframe src="${url}" style="width:100%; height:70vh; border:none;" class="rounded bg-white"></iframe>`;
+						container.innerHTML = `
+							<div class="w-100 d-flex flex-column align-items-center justify-content-center p-2 rounded bg-white text-dark" style="min-height: 65vh;">
+								<object data="${url}" type="application/pdf" class="w-100 rounded" style="height: 65vh; min-height: 420px;">
+									<embed src="${url}" type="application/pdf" class="w-100" style="height: 65vh; min-height: 420px;" />
+									<div class="text-center p-4">
+										<i class="ri-file-pdf-2-line fs-1 text-danger mb-2 d-block"></i>
+										<h5 class="fw-bold text-dark mb-2">Documento PDF Factura</h5>
+										<p class="text-muted small mb-3">Si tu navegador no muestra la previsualización directa, puedes abrir el PDF completo a continuación.</p>
+										<a href="${url}" target="_blank" rel="noopener" class="btn btn-danger rounded-pill px-4 fw-bold">
+											<i class="ri-external-link-line me-1"></i> Abrir Documento PDF
+										</a>
+									</div>
+								</object>
+							</div>`;
 					} else {
 						container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;
 					}
@@ -1970,27 +2019,40 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						`;
 					}
 
+					// Register client message as read when modal is opened
+					const lastClientMsg = (ticket.history || []).filter((h: any) => h.from_client).pop();
+					if (lastClientMsg) {
+						const clientKey = `${ticket.ticket_number}_${new Date(lastClientMsg.updated_at).getTime()}`;
+						let readTickets: string[] = [];
+						try { readTickets = JSON.parse(localStorage.getItem('read_client_tickets') || '[]'); } catch {}
+						if (!readTickets.includes(clientKey)) {
+							readTickets.push(clientKey);
+							localStorage.setItem('read_client_tickets', JSON.stringify(readTickets));
+							updateClientAlertDots();
+						}
+					}
+
 					const isPdfReceipt = (ticket.sales_receipt_image || '').toLowerCase().endsWith('.pdf');
 					const receiptBlock = isPdfReceipt
 						? `
-							<div class="col-6 col-md-4 mb-3">
-								<span class="small text-muted d-block mb-1">Factura de Compra</span>
-								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 w-100 media-preview-btn d-block" data-url="${ticket.sales_receipt_image}" data-title="Factura de Compra (PDF)">
-									<div class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center p-2 pb-4">
-										<i class="ri-file-pdf-2-line fs-2 text-danger mb-1"></i>
-										<span class="fw-bold text-dark text-truncate w-100 text-center" style="font-size: 0.75rem;">Factura PDF</span>
+							<div class="col-6 col-md-4 mb-2">
+								<span class="small text-muted fw-bold d-block mb-1 text-truncate" style="font-size: 0.73rem;">Factura de Compra</span>
+								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light w-100 media-preview-btn d-block shadow-sm" data-url="${ticket.sales_receipt_image}" data-title="Factura de Compra (PDF)" style="height: 92px;">
+									<div class="w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-danger bg-opacity-10 text-danger pb-3">
+										<i class="ri-file-pdf-2-line fs-2 mb-1"></i>
+										<span class="fw-bold" style="font-size: 0.7rem;">Factura PDF</span>
 									</div>
-									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1 small" style="font-size: 0.65rem; z-index: 10;">
 										<i class="ri-aspect-ratio-line me-1"></i>Previsualizar PDF
 									</div>
 								</button>
 							</div>`
 						: `
-							<div class="col-6 col-md-4 mb-3">
-								<span class="small text-muted d-block mb-1">Factura de Compra</span>
-								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 w-100 media-preview-btn" data-url="${ticket.sales_receipt_image}" data-title="Factura de Compra">
+							<div class="col-6 col-md-4 mb-2">
+								<span class="small text-muted fw-bold d-block mb-1 text-truncate" style="font-size: 0.73rem;">Factura de Compra</span>
+								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light w-100 media-preview-btn d-block shadow-sm" data-url="${ticket.sales_receipt_image}" data-title="Factura de Compra" style="height: 92px;">
 									<img src="${ticket.sales_receipt_image}" alt="Factura" class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
-									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1 small" style="font-size: 0.65rem; z-index: 10;">
 										<i class="ri-aspect-ratio-line me-1"></i>Previsualizar
 									</div>
 								</button>
@@ -1998,11 +2060,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 					const snBlock = ticket.product_sn_image
 						? `
-							<div class="col-6 col-md-4 mb-3">
-								<span class="small text-muted d-block mb-1">Foto S/N Producto y Caja</span>
-								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 w-100 media-preview-btn" data-url="${ticket.product_sn_image}" data-title="Foto S/N Producto y Caja">
+							<div class="col-6 col-md-4 mb-2">
+								<span class="small text-muted fw-bold d-block mb-1 text-truncate" style="font-size: 0.73rem;">Foto S/N Producto</span>
+								<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light w-100 media-preview-btn d-block shadow-sm" data-url="${ticket.product_sn_image}" data-title="Foto S/N Producto y Caja" style="height: 92px;">
 									<img src="${ticket.product_sn_image}" alt="Foto S/N" class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
-									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+									<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1 small" style="font-size: 0.65rem; z-index: 10;">
 										<i class="ri-aspect-ratio-line me-1"></i>Previsualizar
 									</div>
 								</button>
@@ -2015,12 +2077,12 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
 						if (isVideo) {
 							return `
-								<div class="col-6 col-md-4 mb-3">
-									<span class="small text-muted d-block mb-1">Evidencia ${index + 1} (Video)</span>
-									<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-dark ratio ratio-4x3 w-100 media-preview-btn" data-url="${url}" data-title="Evidencia ${index + 1} (Video)">
+								<div class="col-6 col-md-4 mb-2">
+									<span class="small text-muted fw-bold d-block mb-1 text-truncate" style="font-size: 0.73rem;">Evidencia ${index + 1} (Video)</span>
+									<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-dark w-100 media-preview-btn d-block shadow-sm" data-url="${url}" data-title="Evidencia ${index + 1} (Video)" style="height: 92px;">
 										<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
-										<div class="position-absolute top-50 start-50 translate-middle text-white fs-2"><i class="ri-play-circle-fill"></i></div>
-										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+										<div class="position-absolute top-50 start-50 translate-middle text-white fs-3"><i class="ri-play-circle-fill"></i></div>
+										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1 small" style="font-size: 0.65rem; z-index: 10;">
 											<i class="ri-aspect-ratio-line me-1"></i>Previsualizar
 										</div>
 									</button>
@@ -2028,11 +2090,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							`;
 						} else {
 							return `
-								<div class="col-6 col-md-4 mb-3">
-									<span class="small text-muted d-block mb-1">Evidencia ${index + 1} (Foto)</span>
-									<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light ratio ratio-4x3 w-100 media-preview-btn" data-url="${url}" data-title="Evidencia ${index + 1}">
+								<div class="col-6 col-md-4 mb-2">
+									<span class="small text-muted fw-bold d-block mb-1 text-truncate" style="font-size: 0.73rem;">Evidencia ${index + 1} (Foto)</span>
+									<button type="button" class="btn p-0 border rounded-3 overflow-hidden position-relative bg-light w-100 media-preview-btn d-block shadow-sm" data-url="${url}" data-title="Evidencia ${index + 1}" style="height: 92px;">
 										<img src="${url}" alt="Evidencia" class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
-										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
+										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1 small" style="font-size: 0.65rem; z-index: 10;">
 											<i class="ri-aspect-ratio-line me-1"></i>Previsualizar
 										</div>
 									</button>
@@ -2812,8 +2874,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								const ext = (url.split('.').pop() || '').toLowerCase();
 								const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
 								const label = isVideo ? `Video ${idx + 1}` : `Foto ${idx + 1}`;
-								return `<a href="${absUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline; margin-right:6px;">Ver ${label}</a>`;
-							}).join(' ');
+								return `<a href="${absUrl}" target="_blank" style="color:#0d6efd; text-decoration:underline;">Ver ${label}</a>`;
+							}).join('&nbsp;&nbsp;');
 						}
 
 						tableRows += `

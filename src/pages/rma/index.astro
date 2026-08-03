@@ -801,6 +801,48 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 			</div>
 		</div>
 
+		<!-- Dedicated Modal for Transition to "En proceso" (Step 1 requirement) -->
+		<div class="modal fade" id="branchReceiveModal" tabindex="-1" aria-labelledby="branchReceiveModalLabel" aria-hidden="true" data-bs-backdrop="static">
+			<div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+				<div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+					<div class="modal-header bg-dark text-white p-3.5 border-0">
+						<h5 class="modal-title fs-6 fw-bold mb-0 d-flex align-items-center gap-2" id="branchReceiveModalLabel">
+							<i class="ri-store-2-line text-warning fs-5"></i> Recepción en Sucursal <span class="badge bg-warning text-dark ms-2" id="branch-receive-ticket-number">RMA-XXXX</span>
+						</h5>
+						<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+					</div>
+					<div class="modal-body p-4 bg-body-tertiary">
+						<div class="alert alert-warning border-0 shadow-sm rounded-3 p-3 mb-3.5 d-flex align-items-start gap-2.5">
+							<i class="ri-alert-line fs-5 flex-shrink-0 text-warning"></i>
+							<div class="small text-dark" style="font-size: 0.84rem; line-height: 1.45;">
+								Para pasar esta solicitud a la columna <strong>"En proceso"</strong>, es obligatorio confirmar que el producto ya ha sido entregado o dejado en la sucursal.
+							</div>
+						</div>
+
+						<div class="card border rounded-3 p-3 bg-white shadow-sm mb-2">
+							<div class="form-check d-flex align-items-center gap-2.5 m-0">
+								<input class="form-check-input flex-shrink-0" type="checkbox" id="branch-receive-checkbox" style="width: 22px; height: 22px; cursor: pointer;" />
+								<label class="form-check-label fw-bold text-dark mb-0 ms-1" for="branch-receive-checkbox" style="cursor: pointer; font-size: 0.88rem;">
+									Producto dejado físicamente en la sucursal
+								</label>
+							</div>
+						</div>
+						<span class="text-muted d-block small mb-3 ps-1" style="font-size: 0.74rem;">El cliente o tienda trajo el equipo al establecimiento.</span>
+
+						<div class="alert alert-danger d-none mt-2 py-2 px-3 small rounded-3" id="branch-receive-error"></div>
+					</div>
+					<div class="modal-footer border-top bg-white p-3 d-flex justify-content-between">
+						<button type="button" class="btn btn-sm btn-light border rounded-pill px-3.5 fw-semibold text-muted" data-bs-dismiss="modal">
+							Cancelar
+						</button>
+						<button type="button" class="btn btn-sm btn-dark rounded-pill px-4 fw-bold" id="branch-receive-submit-btn">
+							<i class="ri-checkbox-circle-line me-1 text-success"></i> Confirmar y Pasar a En Proceso
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Checklist Modal for Missing Steps -->
 		<div class="modal fade" id="completeStepsModal" tabindex="-1" aria-labelledby="completeStepsModalLabel" aria-hidden="true">
 			<div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
@@ -1340,6 +1382,86 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					modal?.hide();
 				});
 
+				// ---- Dedicated Modal: Recepción en Sucursal (Paso 1 para En proceso) ----
+				let pendingBranchReceive: { ticketNumber: string; orderedNumbers: any[] } | null = null;
+				let branchReceiveSubmitting = false;
+				const branchReceiveModalEl = document.getElementById('branchReceiveModal');
+
+				function openBranchReceiveModal(ticketNumber: string, orderedNumbers: any[]) {
+					pendingBranchReceive = { ticketNumber, orderedNumbers };
+					branchReceiveSubmitting = false;
+
+					const numEl = document.getElementById('branch-receive-ticket-number');
+					if (numEl) numEl.textContent = ticketNumber;
+
+					const chkEl = document.getElementById('branch-receive-checkbox') as HTMLInputElement;
+					if (chkEl) chkEl.checked = false;
+
+					document.getElementById('branch-receive-error')?.classList.add('d-none');
+					// @ts-ignore
+					bootstrap.Modal.getOrCreateInstance(branchReceiveModalEl).show();
+				}
+
+				branchReceiveModalEl?.addEventListener('hidden.bs.modal', () => {
+					if (pendingBranchReceive && !branchReceiveSubmitting) {
+						window.location.reload();
+					}
+				});
+
+				document.getElementById('branch-receive-submit-btn')?.addEventListener('click', async () => {
+					if (!pendingBranchReceive) return;
+					const errEl = document.getElementById('branch-receive-error');
+					const chk = (document.getElementById('branch-receive-checkbox') as HTMLInputElement).checked;
+
+					if (!chk) {
+						if (errEl) {
+							errEl.textContent = 'Debes confirmar que el producto fue dejado físicamente en la sucursal para avanzar a En proceso.';
+							errEl.classList.remove('d-none');
+						}
+						return;
+					}
+
+					const btn = document.getElementById('branch-receive-submit-btn') as HTMLButtonElement;
+					try {
+						branchReceiveSubmitting = true;
+						btn.disabled = true;
+						btn.textContent = 'Guardando...';
+
+						// 1. Guardar el paso 1 (step_left_at_branch)
+						const stepRes = await fetch('/api/tickets/update-steps', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({
+								ticketNumber: pendingBranchReceive.ticketNumber,
+								step_left_at_branch: true,
+							}),
+						});
+						if (!stepRes.ok) throw new Error('Error al actualizar el paso de sucursal');
+
+						// 2. Mover el estado del ticket a "en proceso"
+						const statusRes = await fetch('/api/tickets/update-status', {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({
+								ticketNumber: pendingBranchReceive.ticketNumber,
+								status: 'en proceso',
+								orderedNumbers: pendingBranchReceive.orderedNumbers,
+							}),
+						});
+						if (!statusRes.ok) throw new Error('Error al actualizar el estado a En proceso');
+
+						window.location.reload();
+					} catch (err: any) {
+						branchReceiveSubmitting = false;
+						btn.disabled = false;
+						btn.innerHTML = '<i class="ri-checkbox-circle-line me-1 text-success"></i> Confirmar y Pasar a En Proceso';
+						if (errEl) {
+							errEl.textContent = err.message;
+							errEl.classList.remove('d-none');
+						}
+					}
+				});
+
 				// ---- Modal de Pasos Obligatorios Faltantes ----
 				let pendingCompleteSteps: { ticketNumber: string; status: string; orderedNumbers: any[] } | null = null;
 				let completeStepsSubmitting = false;
@@ -1672,6 +1794,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							targetNumbers.unshift(ticketNumber);
 						}
 
+						if (nextStatus === 'en proceso') {
+							// @ts-ignore
+							const ticket = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number === ticketNumber);
+							if (ticket && !ticket.step_left_at_branch) {
+								openBranchReceiveModal(ticketNumber, targetNumbers);
+								return;
+							}
+						}
+
 						if (nextStatus === 'finalizada' || nextStatus === 'rechazada') {
 							openFinalizeModal(ticketNumber, nextStatus, targetNumbers);
 						} else {
@@ -1707,17 +1838,21 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						const res = await fetch('/api/tickets/check-updates');
 						if (res.ok) {
 							const data = await res.json();
-							if (lastKnownUpdate > 0 && (data.lastUpdated !== lastKnownUpdate || data.count !== lastKnownCount)) {
+							if (lastKnownUpdate > 0 && (data.lastUpdated > lastKnownUpdate || data.count !== lastKnownCount)) {
 								window.location.reload();
 							} else {
 								lastKnownUpdate = data.lastUpdated;
 								lastKnownCount = data.count;
 							}
 						}
-					} catch (e) {
-						// Ignorar errores de red temporales
+					} catch (err) {
+						console.error('Error polling updates:', err);
 					}
 				}, 300000);
+
+				// Kanban Drag-and-Drop Event Handlers
+				const draggables = document.querySelectorAll('.draggable-ticket');
+				const columns = document.querySelectorAll('.lane-column');
 
 				columns.forEach(column => {
 					column.addEventListener('dragover', (e) => {
@@ -1785,7 +1920,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							// @ts-ignore
 							const ticket = window.ALL_TICKETS.find(t => t.ticket_number === ticketNumber);
 							if (ticket && !ticket.step_left_at_branch) {
-								openCompleteStepsModal(ticketNumber, newStatus, orderedNumbers);
+								openBranchReceiveModal(ticketNumber, orderedNumbers);
 								return;
 							}
 						}
@@ -2222,18 +2357,18 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<div class="cx-chat cx-chat-public flex-grow-1 h-100">
 												<div class="cx-chat-head"><i class="ri-eye-line"></i><div><span class="cx-chat-title">Público</span><span class="cx-chat-sub">Lo ve el cliente</span></div></div>
 												<div class="cx-chat-body" style="height: 460px;">${publicHtml || '<p class="cx-chat-empty">Aún no hay mensajes para el cliente.</p>'}</div>
-												<form class="cx-chat-input mt-auto p-2 border-top bg-light rounded-bottom" data-visibility="external">
-													<textarea class="form-control form-control-sm mb-2" rows="2" placeholder="Mensaje para el cliente..."></textarea>
-													<div class="d-flex align-items-center justify-content-between">
-														<label class="btn btn-xs btn-outline-secondary rounded-pill mb-0 px-2.5 py-1 d-inline-flex align-items-center gap-1" style="font-size: 0.72rem; cursor: pointer;">
-															<i class="ri-attachment-2"></i>
+												<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="external">
+													<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
+													<div class="d-flex align-items-center gap-2">
+														<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
+															<i class="ri-attachment-2 fs-5"></i>
 															<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
 														</label>
-														<button type="submit" class="btn btn-sm btn-info text-white rounded-pill px-3 py-1 d-inline-flex align-items-center gap-1" style="font-size: 0.75rem;" title="Enviar al cliente">
-															<i class="ri-send-plane-fill"></i> Enviar
+														<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Mensaje para el cliente..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
+														<button type="submit" class="btn btn-sm btn-info text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Enviar mensaje">
+															<i class="ri-send-plane-fill fs-5"></i>
 														</button>
 													</div>
-													<div class="chat-file-previews d-flex flex-wrap gap-1 mt-2"></div>
 												</form>
 											</div>
 										</div>
@@ -2242,25 +2377,22 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<div class="cx-chat cx-chat-internal flex-grow-1 h-100">
 												<div class="cx-chat-head"><i class="ri-lock-line"></i><div><span class="cx-chat-title">Interno</span><span class="cx-chat-sub">Solo el equipo</span></div></div>
 												<div class="cx-chat-body" style="height: 460px;">${internalHtml || '<p class="cx-chat-empty">Aún no hay notas internas.</p>'}</div>
-												<form class="cx-chat-input mt-auto p-2 border-top bg-light rounded-bottom" data-visibility="internal">
-													<textarea class="form-control form-control-sm mb-2" rows="2" placeholder="Nota interna del equipo..."></textarea>
-													<div class="d-flex align-items-center justify-content-between">
-														<label class="btn btn-xs btn-outline-secondary rounded-pill mb-0 px-2.5 py-1 d-inline-flex align-items-center gap-1" style="font-size: 0.72rem; cursor: pointer;">
-															<i class="ri-attachment-2"></i>
+												<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="internal">
+													<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
+													<div class="d-flex align-items-center gap-2">
+														<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
+															<i class="ri-attachment-2 fs-5"></i>
 															<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
 														</label>
-														<button type="submit" class="btn btn-sm btn-dark rounded-pill px-3 py-1 d-inline-flex align-items-center gap-1" style="font-size: 0.75rem;" title="Guardar nota interna">
-															<i class="ri-send-plane-fill"></i> Enviar
+														<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Nota interna del equipo..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
+														<button type="submit" class="btn btn-sm btn-dark text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Guardar nota interna">
+															<i class="ri-send-plane-fill fs-5"></i>
 														</button>
 													</div>
-													<div class="chat-file-previews d-flex flex-wrap gap-1 mt-2"></div>
 												</form>
 											</div>
 										</div>
 									</div>
-										</div>
-									</div>
-
 								</div>
 							</div>
 						</div>
@@ -2273,26 +2405,28 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							if (errorEl) errorEl.classList.add('d-none');
 
 							try {
-								const fieldName = stepId.replace(/-/g, '_');
-								const payload = {
-									ticketNumber: ticket.ticket_number,
-									[fieldName]: checkbox.checked
-								};
 								const res = await fetch('/api/tickets/update-steps', {
 									method: 'POST',
 									headers: { 'content-type': 'application/json' },
-									body: JSON.stringify(payload)
+									body: JSON.stringify({
+										ticketNumber: ticket.ticket_number,
+										step_left_at_branch: (modalBody.querySelector('#step-left-at-branch') as HTMLInputElement).checked,
+										step_sent_to_distributor: (modalBody.querySelector('#step-sent-to-distributor') as HTMLInputElement).checked,
+										step_resolved: (modalBody.querySelector('#step-resolved') as HTMLInputElement).checked,
+									})
 								});
 								const data = await res.json();
-								if (!res.ok) throw new Error(data.error || 'Error al actualizar paso');
+								if (!res.ok) throw new Error(data.error || 'Error al actualizar los pasos');
 
-								// Update ticket locally in window.ALL_TICKETS
 								// @ts-ignore
-								const tIndex = window.ALL_TICKETS.findIndex((t: any) => t.ticket_number === ticket.ticket_number);
-								// @ts-ignore
-								if (tIndex !== -1) {
+								const tIdx = window.ALL_TICKETS.findIndex((t: any) => t.ticket_number === ticket.ticket_number);
+								if (tIdx !== -1) {
 									// @ts-ignore
-									window.ALL_TICKETS[tIndex][fieldName] = checkbox.checked;
+									window.ALL_TICKETS[tIdx].step_left_at_branch = data.ticket.step_left_at_branch;
+									// @ts-ignore
+									window.ALL_TICKETS[tIdx].step_sent_to_distributor = data.ticket.step_sent_to_distributor;
+									// @ts-ignore
+									window.ALL_TICKETS[tIdx].step_resolved = data.ticket.step_resolved;
 								}
 							} catch (err: any) {
 								console.error(err);
@@ -2353,6 +2487,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									body: JSON.stringify({
 										ticketNumber: ticket.ticket_number,
 										status: ticket.status,
+										orderedNumbers: [],
 										resolutionType: typeEl.value,
 										mainComment,
 										clientSolution,
@@ -2455,24 +2590,34 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 						function renderChatPreviews() {
 							if (!previewsContainer) return;
+							if (attachments.length === 0) {
+								previewsContainer.classList.add('d-none');
+								previewsContainer.innerHTML = '';
+								return;
+							}
+							previewsContainer.classList.remove('d-none');
 							previewsContainer.innerHTML = attachments.map((url, idx) => {
 								const ext = (url.split('.').pop() || '').toLowerCase();
 								const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
 								const isPdf = ext === 'pdf';
 								return `
-									<div class="d-flex align-items-center gap-1 border rounded bg-white p-1 shadow-sm position-relative">
+									<div class="position-relative d-inline-block border rounded-3 overflow-hidden bg-white shadow-sm" style="width: 52px; height: 52px;">
 										${isVideo 
-											? `<div class="bg-dark text-white rounded d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="ri-play-circle-fill"></i></div>` 
+											? `<div class="w-100 h-100 bg-dark text-white rounded d-flex flex-column align-items-center justify-content-center" style="font-size:0.6rem;"><i class="ri-play-circle-fill fs-5"></i><span>Video</span></div>` 
 											: isPdf 
-												? `<div class="bg-danger-subtle text-danger rounded d-flex align-items-center justify-content-center" style="width:32px;height:32px;"><i class="ri-file-pdf-line"></i></div>`
-												: `<img src="${url}" class="rounded object-fit-cover" style="width:32px;height:32px;" />`}
-										<button type="button" class="btn btn-xs text-danger p-0 delete-chat-att" data-idx="${idx}"><i class="ri-close-line"></i></button>
+												? `<div class="w-100 h-100 bg-danger-subtle text-danger rounded d-flex flex-column align-items-center justify-content-center" style="font-size:0.6rem;"><i class="ri-file-pdf-line fs-5"></i><span>PDF</span></div>`
+												: `<img src="${url}" class="w-100 h-100 object-fit-cover" />`}
+										<button type="button" class="btn btn-danger btn-xs position-absolute top-0 end-0 p-0 rounded-circle d-flex align-items-center justify-content-center delete-chat-att" data-idx="${idx}" style="width: 18px; height: 18px; transform: translate(25%, -25%); z-index: 10;" title="Quitar">
+											<i class="ri-close-line" style="font-size: 0.75rem;"></i>
+										</button>
 									</div>
 								`;
 							}).join('');
 
 							previewsContainer.querySelectorAll('.delete-chat-att').forEach(b => {
-								b.addEventListener('click', () => {
+								b.addEventListener('click', (e) => {
+									e.preventDefault();
+									e.stopPropagation();
 									const idx = parseInt(b.getAttribute('data-idx') || '0', 10);
 									attachments.splice(idx, 1);
 									renderChatPreviews();

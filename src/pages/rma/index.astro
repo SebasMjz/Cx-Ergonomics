@@ -444,6 +444,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 																					<i class="ri-whatsapp-line"></i> Enviar WhatsApp
 																				</a>
 
+																				<button
+																					type="button"
+																					class="btn btn-xs btn-outline-dark w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 print-ticket-btn mb-1"
+																					data-ticket-number={ticket.ticket_number}
+																					style="font-size: 0.72rem;"
+																				>
+																					<i class="ri-printer-line"></i> Imprimir Ticket
+																				</button>
+
 																				<!-- Column actions -->
 																				{column.status === 'recibida' && (
 																					<div class="mt-2 d-flex flex-column gap-1">
@@ -1461,7 +1470,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							
 							// Prevent open modal if click was on a button
 							const target = e.target as HTMLElement;
-							if (target.closest('.advance-ticket-btn') || target.closest('.reject-ticket-btn') || target.closest('.archive-ticket-btn') || target.closest('.wa-ticket-btn')) return;
+							if (target.closest('.advance-ticket-btn') || target.closest('.reject-ticket-btn') || target.closest('.archive-ticket-btn') || target.closest('.wa-ticket-btn') || target.closest('.print-ticket-btn')) return;
 							
 							const tNum = draggable.getAttribute('data-ticket-number');
 							// @ts-ignore
@@ -1491,55 +1500,56 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					}
 				}
 
-				// ---- Impresión formato ticket térmico ----
-				function printTicketReceipt(ticket: any) {
-					const printWin = window.open('', '_blank', 'width=450,height=600');
+				// ---- Impresión de Etiqueta/Sticker RMA para pegar al producto ----
+				function printRmaSticker(ticket: any) {
+					const printWin = window.open('', '_blank', 'width=420,height=500');
 					if (!printWin) {
 						alert('Por favor permite las ventanas emergentes (popups) para imprimir el ticket.');
 						return;
 					}
 
-					const dateStr = ticket.createdAtStr || new Date(ticket.createdAt).toLocaleDateString('es-VE');
-					const name = ticket.customer_details?.name || ticket.customerName || '—';
-					const ci = ticket.customer_details?.ci || '—';
-					const phone = ticket.customer_details?.phone || '—';
-					const city = ticket.customer_details?.city || '—';
-					const serial = ticket.product_serial_number || '—';
-					const product = ticket.product_name || '—';
-					const brand = ticket.product_brand || '—';
-					const desc = ticket.issue_description || '—';
+					const dateStr = ticket.createdAtStr || (ticket.createdAt ? new Intl.DateTimeFormat('es-VE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(ticket.createdAt)) : '');
+					const clientName = ticket.customer_details?.name || ticket.customerName || '—';
+					const clientPhone = ticket.customer_details?.phone || ticket.customerPhone || '—';
+					
+					const managerName = ticket.store_manager_name || ticket.storeManagerName || '';
+					const managerPhone = ticket.store_manager_phone || ticket.storeManagerPhone || '';
+					
+					const contactInfo = managerName
+						? managerName + ' (' + (managerPhone || clientPhone) + ') [Encargado]'
+						: clientName + ' (' + clientPhone + ')';
+
+					const serial = ticket.product_serial_number || ticket.productSerialNumber || '—';
+					const product = ticket.product_name || ticket.productName || '—';
+					const brand = ticket.product_brand || ticket.productBrand || '—';
+					const desc = ticket.issue_description || ticket.issueDescription || '—';
 
 					const html = [
 						'<!DOCTYPE html>',
 						'<html lang="es"><head><meta charset="utf-8">',
-						'<title>Comprobante RMA - ' + ticket.ticket_number + '</title>',
+						'<title>Etiqueta RMA - ' + ticket.ticket_number + '</title>',
 						'<style>',
-						'@page { size: 80mm auto; margin: 5mm; }',
-						'body { font-family: "Courier New", Courier, monospace, sans-serif; width: 280px; margin: 0 auto; padding: 10px; color: #000; font-size: 12px; line-height: 1.35; }',
-						'.header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 10px; }',
-						'.title { font-size: 16px; font-weight: bold; margin-bottom: 2px; }',
-						'.sub { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }',
-						'.ticket-box { border: 2px solid #000; text-align: center; font-size: 18px; font-weight: bold; padding: 6px; margin: 10px 0; background: #f0f0f0; letter-spacing: 1px; }',
-						'.row-item { margin-bottom: 4px; display: flex; justify-content: space-between; }',
-						'.label { font-weight: bold; }',
-						'.divider { border-bottom: 1px dashed #000; margin: 8px 0; }',
-						'.footer { text-align: center; font-size: 9.5px; margin-top: 12px; border-top: 1px solid #000; padding-top: 6px; }',
+						'@page { size: 80mm auto; margin: 3mm; }',
+						'body { font-family: Arial, Helvetica, sans-serif; width: 270px; margin: 0 auto; padding: 6px; color: #000; font-size: 12px; line-height: 1.3; }',
+						'.header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px; }',
+						'.title { font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }',
+						'.ticket-num { border: 3px solid #000; text-align: center; font-size: 20px; font-weight: 900; padding: 6px 0; margin: 6px 0; background: #000; color: #fff; letter-spacing: 1px; }',
+						'.item { margin-bottom: 5px; font-size: 11px; }',
+						'.label { font-weight: bold; text-transform: uppercase; font-size: 10px; color: #333; }',
+						'.val { font-weight: bold; color: #000; }',
+						'.box { border: 1px solid #000; padding: 5px; font-size: 11px; margin-top: 4px; word-break: break-word; background: #f9f9f9; }',
 						'</style></head><body>',
-						'<div class="header"><div class="title">CX ERGONOMIC</div><div class="sub">Servicio de Garantías (RMA)</div></div>',
-						'<div class="ticket-box">' + ticket.ticket_number + '</div>',
-						'<div class="row-item"><span class="label">Fecha:</span> <span>' + dateStr + '</span></div>',
-						'<div class="row-item"><span class="label">Cliente:</span> <span>' + name + '</span></div>',
-						'<div class="row-item"><span class="label">CI / NIT:</span> <span>' + ci + '</span></div>',
-						'<div class="row-item"><span class="label">Teléfono:</span> <span>' + phone + '</span></div>',
-						'<div class="row-item"><span class="label">Ciudad:</span> <span>' + city + '</span></div>',
-						'<div class="divider"></div>',
-						'<div class="row-item"><span class="label">Producto:</span> <span>' + product + '</span></div>',
-						'<div class="row-item"><span class="label">Marca:</span> <span>' + brand + '</span></div>',
-						'<div class="row-item"><span class="label">Serial S/N:</span> <span>' + serial + '</span></div>',
-						'<div class="divider"></div>',
-						'<div style="margin-bottom: 4px;"><span class="label">Falla reportada:</span></div>',
-						'<div style="font-size: 11px; background: #f9f9f9; padding: 5px; border: 1px solid #ccc; word-break: break-word;">' + desc + '</div>',
-						'<div class="footer">Conserve este comprobante para su seguimiento.<br>¡Gracias por elegir CX Ergonomic!</div>',
+						'<div class="header"><div class="title">GARANTÍA RMA</div></div>',
+						'<div class="ticket-num">' + ticket.ticket_number + '</div>',
+						'<div class="item"><span class="label">FECHA:</span> <span class="val">' + dateStr + '</span></div>',
+						'<div class="item"><span class="label">CONTACTO:</span> <span class="val">' + contactInfo + '</span></div>',
+						'<div style="border-bottom: 1px dashed #000; margin: 6px 0;"></div>',
+						'<div class="item"><span class="label">PRODUCTO:</span> <span class="val">' + product + '</span></div>',
+						'<div class="item"><span class="label">MARCA:</span> <span class="val">' + brand + '</span></div>',
+						'<div class="item"><span class="label">SERIAL S/N:</span> <span class="val" style="font-size: 13px;">' + serial + '</span></div>',
+						'<div style="border-bottom: 1px dashed #000; margin: 6px 0;"></div>',
+						'<div class="item"><span class="label">FALLA REPORTADA:</span></div>',
+						'<div class="box">' + desc + '</div>',
 						'<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };</' + 'script>',
 						'</body></html>'
 					].join('\n');
@@ -1551,25 +1561,40 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				// ---- Listener para el botón "Avanzar Estado" ----
 				document.querySelectorAll('.advance-ticket-btn').forEach((btn) => {
 					btn.addEventListener('click', (e) => {
+						e.preventDefault();
 						e.stopPropagation();
 						const ticketNumber = btn.getAttribute('data-ticket-number');
 						const nextStatus = btn.getAttribute('data-next-status');
 						if (!ticketNumber || !nextStatus) return;
 
-						const columnTarget = document.querySelector(`.lane-column[data-status="\${nextStatus}"]`);
-						if (columnTarget) {
-							const targetNumbers = Array.from(columnTarget.querySelectorAll('.draggable-ticket'))
-								.map((el) => el.getAttribute('data-ticket-number'))
-								.filter(Boolean);
-							if (!targetNumbers.includes(ticketNumber)) {
-								targetNumbers.unshift(ticketNumber);
-							}
+						const columnTarget = document.querySelector('.lane-column[data-status="' + nextStatus + '"]');
+						const targetNumbers = columnTarget
+							? Array.from(columnTarget.querySelectorAll('.draggable-ticket'))
+									.map((el) => el.getAttribute('data-ticket-number'))
+									.filter(Boolean)
+							: [];
+						if (!targetNumbers.includes(ticketNumber)) {
+							targetNumbers.unshift(ticketNumber);
+						}
 
-							if (nextStatus === 'finalizada' || nextStatus === 'rechazada') {
-								openFinalizeModal(ticketNumber, nextStatus, targetNumbers);
-							} else {
-								updateTicketStatus(ticketNumber, nextStatus, targetNumbers);
-							}
+						if (nextStatus === 'finalizada' || nextStatus === 'rechazada') {
+							openFinalizeModal(ticketNumber, nextStatus, targetNumbers);
+						} else {
+							updateTicketStatus(ticketNumber, nextStatus, targetNumbers);
+						}
+					});
+				});
+
+				// ---- Listener para el botón "Imprimir Ticket" de la tarjeta ----
+				document.querySelectorAll('.print-ticket-btn').forEach((btn) => {
+					btn.addEventListener('click', (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						const ticketNumber = btn.getAttribute('data-ticket-number');
+						// @ts-ignore
+						const ticket = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number === ticketNumber);
+						if (ticket) {
+							printRmaSticker(ticket);
 						}
 					});
 				});
@@ -2163,7 +2188,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					// Conectar botón de impresión de ticket
 					const printBtn = document.getElementById('modal-print-ticket-btn');
 					if (printBtn) {
-						printBtn.onclick = () => printTicketReceipt(ticket);
+						printBtn.onclick = () => printRmaSticker(ticket);
 					}
 
 					// Show modal using Bootstrap modal API

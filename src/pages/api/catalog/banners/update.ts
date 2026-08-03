@@ -3,6 +3,8 @@ import { connectMongoose } from '../../../../lib/mongo';
 import { BannerModel } from '../../../../lib/models/Banner';
 import { json, requireAdmin } from '../../../../lib/api';
 
+import { extractYoutubeId } from '../../../../lib/youtube';
+
 export const POST: APIRoute = async ({ request }) => {
 	const auth = requireAdmin(request);
 	if (auth.response) return auth.response;
@@ -17,7 +19,13 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!banner) return json({ error: 'Banner no encontrado.' }, 404);
 
 		for (const field of ['kicker', 'title', 'subtitle', 'cta_text', 'cta_link', 'source', 'video_id', 'video_url', 'image_url', 'poster', 'is_active'] as const) {
-			if (body[field] !== undefined) (banner as any)[field] = body[field];
+			if (body[field] !== undefined) {
+				let val = body[field];
+				if (field === 'video_id' && (body.source === 'youtube' || banner.source === 'youtube')) {
+					val = extractYoutubeId(val);
+				}
+				(banner as any)[field] = val;
+			}
 		}
 		await banner.save();
 		return json({ success: true, banner });

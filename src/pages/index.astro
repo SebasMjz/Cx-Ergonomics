@@ -59,8 +59,11 @@ try {
 	console.error('[Index Page Error]: Failed to fetch DB data:', e);
 }
 
+import { extractYoutubeId } from '../lib/youtube';
+
 // Build a muted/autoplay/loop YouTube embed URL (no sound, no controls).
-function youtubeEmbed(id: string) {
+function youtubeEmbed(urlOrId: string) {
+	const id = extractYoutubeId(urlOrId);
 	const params = new URLSearchParams({
 		autoplay: '1',
 		mute: '1',

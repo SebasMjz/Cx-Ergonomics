@@ -406,8 +406,9 @@ async function seedBanners() {
 			cta_text: 'VER CATALOGO',
 			cta_link: '#catalog-section',
 			source: 'youtube' as const,
-			video_id: '2ZhY7LfpkqQ',
+			video_id: 'nBMEoWlOjw0',
 			order: 1,
+			is_active: true,
 		},
 		{
 			kicker: 'EXPERIENCIA CX',
@@ -417,16 +418,18 @@ async function seedBanners() {
 			cta_text: 'EXPLORAR',
 			cta_link: '#catalog-section',
 			source: 'youtube' as const,
-			video_id: 'BcrrVq7sTAk',
+			video_id: 'lHmrFqCvXxQ',
 			order: 2,
+			is_active: true,
 		},
 	];
 
 	for (const banner of banners) {
-		const existing = await BannerModel.findOne({ order: banner.order });
-		if (!existing) {
-			await BannerModel.create(banner);
-		}
+		await BannerModel.findOneAndUpdate(
+			{ order: banner.order },
+			banner,
+			{ upsert: true, new: true }
+		);
 	}
 }
 

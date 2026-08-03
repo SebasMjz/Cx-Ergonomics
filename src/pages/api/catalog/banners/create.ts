@@ -3,6 +3,8 @@ import { connectMongoose } from '../../../../lib/mongo';
 import { BannerModel } from '../../../../lib/models/Banner';
 import { json, requireAdmin } from '../../../../lib/api';
 
+import { extractYoutubeId } from '../../../../lib/youtube';
+
 export const POST: APIRoute = async ({ request }) => {
 	const auth = requireAdmin(request);
 	if (auth.response) return auth.response;
@@ -12,11 +14,13 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!b.title) return json({ error: 'El título es obligatorio.' }, 400);
 		if (!['youtube', 'file', 'image'].includes(b.source)) return json({ error: 'Fuente inválida.' }, 400);
 
+		const cleanedVideoId = b.source === 'youtube' ? extractYoutubeId(b.video_id) : b.video_id;
+
 		await connectMongoose();
 		const last = await BannerModel.findOne().sort({ order: -1 }).select('order').lean();
 		const banner = await BannerModel.create({
 			kicker: b.kicker, title: b.title, subtitle: b.subtitle, cta_text: b.cta_text, cta_link: b.cta_link,
-			source: b.source, video_id: b.video_id, video_url: b.video_url, image_url: b.image_url, poster: b.poster,
+			source: b.source, video_id: cleanedVideoId, video_url: b.video_url, image_url: b.image_url, poster: b.poster,
 			order: (last?.order ?? 0) + 1,
 			is_active: b.is_active !== false,
 		});

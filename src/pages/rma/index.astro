@@ -1488,23 +1488,26 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					});
 				});
 
-				// Polling automático cada 10s para actualización en tiempo real de nuevos tickets/estados
+				// ---- Opción A: Polling ultraligero (revisa timestamps y conteo en 50 bytes) ----
+				let lastKnownUpdate = 0;
+				let lastKnownCount = 0;
+
 				setInterval(async () => {
 					try {
-						const res = await fetch('/api/tickets/list');
+						const res = await fetch('/api/tickets/check-updates');
 						if (res.ok) {
 							const data = await res.json();
-							const activeCount = data.activeTickets ? data.activeTickets.length : 0;
-							// @ts-ignore
-							const currentActiveCount = (window.ALL_TICKETS || []).filter((t: any) => !t.archived).length;
-							if (activeCount !== currentActiveCount) {
+							if (lastKnownUpdate > 0 && (data.lastUpdated !== lastKnownUpdate || data.count !== lastKnownCount)) {
 								window.location.reload();
+							} else {
+								lastKnownUpdate = data.lastUpdated;
+								lastKnownCount = data.count;
 							}
 						}
 					} catch (e) {
 						// Ignorar errores de red temporales
 					}
-				}, 10000);
+				}, 15000);
 
 				columns.forEach(column => {
 					column.addEventListener('dragover', (e) => {
@@ -1752,15 +1755,12 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							return `
 								<div class="col-6 mb-3">
 									<span class="small text-muted d-block mb-1">Evidencia ${index + 1} (Video)</span>
-									<a href="${url}" class="d-block border rounded-3 overflow-hidden position-relative bg-black ratio ratio-4x3 preview-trigger" style="border-style: solid !important;">
-										<video src="${url}" class="w-100 h-100 object-fit-contain" muted preload="metadata"></video>
-										<div class="position-absolute top-50 start-50 translate-middle text-white bg-dark bg-opacity-50 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; z-index: 5;">
-											<i class="ri-play-fill fs-5"></i>
-										</div>
-										<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white text-center py-1.5 small" style="font-size: 0.68rem; z-index: 10;">
-											<i class="ri-aspect-ratio-line me-1"></i>Ver pantalla completa
-										</div>
-									</a>
+									<div class="border rounded-3 overflow-hidden bg-black ratio ratio-4x3 mb-1" style="border-style: solid !important;">
+										<video src="${url}" controls preload="metadata" class="w-100 h-100 object-fit-contain"></video>
+									</div>
+									<button type="button" class="btn btn-xs btn-outline-dark w-100 rounded-pill preview-trigger" href="${url}" style="font-size: 0.7rem;">
+										<i class="ri-aspect-ratio-line me-1"></i>Ver pantalla completa
+									</button>
 								</div>
 							`;
 						} else {
@@ -1803,10 +1803,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<tr>
 												<td class="text-muted py-1">Ciudad:</td>
 												<td class="text-dark py-1">${ticket.customer_details.city || '—'}</td>
-											</tr>
-											<tr>
-												<td class="text-muted py-1">Departamento:</td>
-												<td class="text-dark py-1">${ticket.customer_details.department || '—'}</td>
 											</tr>
 											<tr>
 												<td class="text-muted py-1">Serial (S/N):</td>
@@ -2057,12 +2053,18 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 							if (isVideo) {
 								imgEl.classList.add('d-none');
+								imgEl.src = '';
 								videoEl.classList.remove('d-none');
 								videoEl.src = url;
-								videoEl.play().catch(err => console.log('Auto-play blocked or failed:', err));
+								videoEl.load();
+								const p = videoEl.play();
+								if (p !== undefined) {
+									p.catch(() => {});
+								}
 							} else {
+								videoEl.pause();
+								videoEl.removeAttribute('src');
 								videoEl.classList.add('d-none');
-								videoEl.src = '';
 								imgEl.classList.remove('d-none');
 								imgEl.src = url;
 							}
@@ -2563,7 +2565,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 										<th>CI / Identificación</th>
 										<th>Teléfono</th>
 										<th>Ciudad</th>
-										<th>Departamento</th>
 										<th>Producto</th>
 										<th>Marca</th>
 										<th>Serial (S/N)</th>

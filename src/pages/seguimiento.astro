@@ -59,8 +59,8 @@ if (ticketParam) {
 // Pasos del seguimiento (índice del paso activo)
 const steps = [
 	{ key: 'recibida', label: 'Nueva solicitud', icon: 'ri-inbox-line' },
-	{ key: 'en proceso', label: 'En proceso', icon: 'ri-loader-4-line' },
 	{ key: 'en revision', label: 'En revisión', icon: 'ri-file-search-line' },
+	{ key: 'en proceso', label: 'En proceso', icon: 'ri-loader-4-line' },
 	result?.isRejected
 		? { key: 'rechazada', label: 'Rechazada', icon: 'ri-close-circle-line' }
 		: { key: 'finalizada', label: 'Finalizada', icon: 'ri-checkbox-circle-line' },

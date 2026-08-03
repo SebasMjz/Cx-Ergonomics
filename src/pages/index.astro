@@ -9,45 +9,55 @@ import SiteNav from '../components/SiteNav.astro';
 import { contrastColor, productBadges, isNewProduct } from '../lib/catalog';
 
 // Connect to Database
-await connectMongoose();
-void TagModel; // asegura el registro del modelo Tag para populate
-const settings = await getSiteSettings();
-const newDays = settings.new_badge_days ?? 30;
+let settings: any = {};
+let categories: any[] = [];
+let products: any[] = [];
+let categoryImages: Record<string, string> = {};
+let featuredViews: any[] = [];
+let banners: any[] = [];
 
-// --- Categories ---
-let categories = await CategoryModel.find({ is_active: true }).lean();
+try {
+	await connectMongoose();
+	void TagModel; // asegura el registro del modelo Tag para populate
+	settings = await getSiteSettings();
+	const newDays = settings.new_badge_days ?? 30;
 
-// --- Products ---
-const products = await ProductModel.find({ is_active: true })
-	.populate('category_id')
-	.populate({ path: 'tag_ids', strictPopulate: false })
-	.sort({ order: 1, createdAt: 1 })
-	.lean();
+	// --- Categories ---
+	categories = await CategoryModel.find({ is_active: true }).lean();
 
-// Representative image per category (first product image), used in the category grid.
-const categoryImages: Record<string, string> = {};
-for (const p of products) {
-	const slug = (p.category_id as any)?.slug;
-	if (slug && !categoryImages[slug] && p.images?.[0]) {
-		categoryImages[slug] = p.images[0];
+	// --- Products ---
+	products = await ProductModel.find({ is_active: true })
+		.populate('category_id')
+		.populate({ path: 'tag_ids', strictPopulate: false })
+		.sort({ order: 1, createdAt: 1 })
+		.lean();
+
+	// Representative image per category (first product image), used in the category grid.
+	for (const p of products) {
+		const slug = (p.category_id as any)?.slug;
+		if (slug && !categoryImages[slug] && p.images?.[0]) {
+			categoryImages[slug] = p.images[0];
+		}
 	}
-}
 
-// --- Destacados: productos NEW (manual) o dentro de la ventana NEW automática. ---
-function isFeatured(p: any) {
-	const tagDocs = (p.tag_ids as any[]) || [];
-	return isNewProduct(p.createdAt, newDays) || tagDocs.some((t) => (t.name || '').toUpperCase() === 'NEW');
-}
-let featured = products.filter(isFeatured);
-// Si no hay destacados, mostramos los primeros productos como vitrina.
-if (featured.length === 0) featured = products.slice(0, 8);
-const featuredViews = featured.slice(0, 8).map((p) => ({
-	p,
-	badges: productBadges((p.tag_ids as any[]) || [], p.createdAt, newDays),
-}));
+	// --- Destacados: productos NEW (manual) o dentro de la ventana NEW automática. ---
+	function isFeatured(p: any) {
+		const tagDocs = (p.tag_ids as any[]) || [];
+		return isNewProduct(p.createdAt, newDays) || tagDocs.some((t) => (t.name || '').toUpperCase() === 'NEW');
+	}
+	let featured = products.filter(isFeatured);
+	// Si no hay destacados, mostramos los primeros productos como vitrina.
+	if (featured.length === 0) featured = products.slice(0, 8);
+	featuredViews = featured.slice(0, 8).map((p) => ({
+		p,
+		badges: productBadges((p.tag_ids as any[]) || [], p.createdAt, newDays),
+	}));
 
-// --- Video Banners ---
-let banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
+	// --- Video Banners ---
+	banners = await BannerModel.find({ is_active: true }).sort({ order: 1 }).lean();
+} catch (e: any) {
+	console.error('[Index Page Error]: Failed to fetch DB data:', e);
+}
 
 // Build a muted/autoplay/loop YouTube embed URL (no sound, no controls).
 function youtubeEmbed(id: string) {

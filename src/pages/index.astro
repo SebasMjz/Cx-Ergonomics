@@ -579,6 +579,32 @@ function youtubeEmbed(urlOrId: string) {
 			</section>
 		))}
 
+		<!-- ===================== SHOP BY CATEGORY ===================== -->
+		<section class="section" id="categories-section">
+			<div class="container">
+				<h2 class="section-heading">Compra por Categoria</h2>
+				<p class="section-sub">Explora nuestra linea completa de mobiliario ergonomico y accesorios inteligentes.</p>
+				<div class="row g-3 g-md-4">
+					{categories.map((cat) => (
+						<div class="col-6 col-lg-4">
+							<div class="category-card" data-slug={cat.slug}>
+								<img
+									src={cat.image || categoryImages[cat.slug] || '/img/logo-cx-ergonomic.webp'}
+									alt={cat.name}
+									class="category-image"
+									onerror="this.src='/img/logo-cx-ergonomic.webp'"
+								/>
+								<div class="category-label">
+									<span><span class="slashes">//</span>{cat.name}</span>
+									<i class="ri-arrow-right-line"></i>
+								</div>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+		</section>
+
 		<!-- ===================== DESTACADOS ===================== -->
 		<section class="section pt-0" id="catalog-section">
 			<div class="container">

@@ -144,26 +144,16 @@ const categories = await CategoryModel.find().sort({ createdAt: -1 }).lean();
 			const progress = document.getElementById('cat-progress');
 			const progressBar = document.getElementById('cat-progress-bar');
 
-			function uploadFile(file) {
-				return new Promise((resolve, reject) => {
-					const fd = new FormData();
-					fd.append('file', file);
-					const xhr = new XMLHttpRequest();
-					xhr.open('POST', '/api/catalog/categories/upload');
-					xhr.upload.addEventListener('progress', (e) => {
-						if (e.lengthComputable) progressBar.style.width = `${Math.round((e.loaded * 100) / e.total)}%`;
-					});
-					xhr.addEventListener('load', () => {
-						if (xhr.status === 201) {
-							const r = JSON.parse(xhr.responseText);
-							resolve(r.url || r.path);
-						} else {
-							try { reject(new Error(JSON.parse(xhr.responseText).error)); } catch { reject(new Error('Error al subir la imagen')); }
-						}
-					});
-					xhr.addEventListener('error', () => reject(new Error('Error de red')));
-					xhr.send(fd);
+			async function uploadFile(file) {
+				const fd = new FormData();
+				fd.append('file', file);
+				const res = await fetch('/api/catalog/categories/upload', {
+					method: 'POST',
+					body: fd,
 				});
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.error || 'Error al subir la imagen');
+				return data.url || data.path;
 			}
 
 			drop.addEventListener('click', () => fileInput.click());

@@ -85,6 +85,8 @@ function youtubeEmbed(urlOrId: string) {
 <html lang="es" data-bs-theme="dark">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/img/logos/logo cx.png" />
+		<link rel="shortcut icon" href="/img/logos/logo cx.png" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0" />
@@ -620,7 +622,7 @@ function youtubeEmbed(urlOrId: string) {
 								<div class="product-image-wrapper">
 									{badges.length > 0 && (
 										<div class="product-tags">
-											{badges.map((t) => (
+											{badges.map((t: any) => (
 												<span class="tag-badge" style={`background:${t.color}; color:${contrastColor(t.color)};`}>{t.name}</span>
 											))}
 										</div>

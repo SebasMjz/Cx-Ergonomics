@@ -21,7 +21,7 @@ const wallpapers = await WallpaperModel.find({ is_active: true }).sort({ order: 
 						<div class="col-12 col-md-6 col-lg-4">
 							<div class="wp-card">
 								<div class="wp-thumb">
-									<img src={wp.image} alt={wp.title} loading="lazy" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+									<img src={wp.image} alt={wp.title} loading="lazy" onerror="this.src='/img/logos/logo cx.png'" />
 									<a class="wp-download btn-cx-primary" href={wp.image} download>
 										<i class="ri-download-2-line"></i> Descargar
 									</a>

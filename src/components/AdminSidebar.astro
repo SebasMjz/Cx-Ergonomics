@@ -36,7 +36,7 @@ const catalogo = [
 	<div class="sidebar-header">
 		<a href="/rma" class="sidebar-brand text-decoration-none d-flex align-items-center justify-content-center">
 			<img
-				src="/img/logo-cx-ergonomic.webp"
+				src="/img/logos/logo cx.png"
 				alt="Logo CX"
 				class="brand-image normal-logo"
 				style="max-height: 32px;"
@@ -88,30 +88,46 @@ const catalogo = [
 	</div>
 
 	<div class="sidebar-footer p-3 border-top bg-body-tertiary">
-		<!-- Botón Cambiar Contraseña ubicado directamente ARRIBA de los datos del usuario -->
-		<button
-			type="button"
-			class={`btn btn-xs w-100 py-1.5 mb-2.5 rounded-pill fw-bold d-flex align-items-center justify-content-center gap-1.5 ${
-				session.must_change_password ? 'btn-warning text-dark border-warning shadow-sm' : 'btn-outline-secondary'
-			}`}
-			id="sidebar-change-pass-btn"
-			data-must-change={session.must_change_password ? 'true' : 'false'}
-			style="font-size: 0.76rem;"
-		>
-			<i class="ri-key-2-line"></i>
-			<span>{session.must_change_password ? '⚠️ Cambiar Contraseña (Obligatorio)' : 'Cambiar Contraseña'}</span>
-		</button>
+		<div class="d-flex align-items-center justify-content-between gap-2 mb-2.5 p-2 rounded-3 bg-body border shadow-sm">
+			<div class="d-flex align-items-center gap-2 overflow-hidden">
+				<div class="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px;">
+					<i class="ri-user-3-line fs-6"></i>
+				</div>
+				<div class="text-truncate">
+					<small class="text-muted d-block" style="font-size: 0.65rem; text-transform: uppercase;">Usuario</small>
+					<strong class="text-body d-block text-truncate" style="font-size: 0.82rem;" id="active-user-name">{session.name}</strong>
+					<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1.5" style="font-size: 0.62rem;">
+						{session.role === 'admin' ? 'Administrador' : 'Técnico'}
+					</span>
+				</div>
+			</div>
 
-		<div class="d-flex align-items-center gap-2 mb-3">
-			<i class="ri-user-heart-line text-dark fs-5"></i>
-			<div>
-				<small class="text-muted d-block" style="font-size: 0.7rem; text-transform: uppercase;">Usuario</small>
-				<strong class="text-body d-block" style="font-size: 0.85rem;" id="active-user-name">{session.name}</strong>
-				<span class="badge bg-secondary-subtle text-secondary py-0.5 px-1.5 mt-0.5" style="font-size: 0.65rem;">
-					{session.role === 'admin' ? 'Administrador' : 'Técnico'}
-				</span>
+			<div class="dropup">
+				<button
+					class={`btn btn-sm p-1 rounded-circle border-0 text-secondary ${session.must_change_password ? 'text-warning fw-bold' : ''}`}
+					type="button"
+					data-bs-toggle="dropdown"
+					aria-expanded="false"
+					title="Opciones de perfil"
+				>
+					<i class={session.must_change_password ? 'ri-alert-line text-warning fs-5' : 'ri-more-2-fill fs-5'}></i>
+				</button>
+				<ul class="dropdown-menu dropdown-menu-end shadow-sm rounded-3 border-0 py-1" style="font-size: 0.82rem;">
+					<li>
+						<button
+							type="button"
+							class="dropdown-item d-flex align-items-center gap-2 py-2 px-3"
+							id="sidebar-change-pass-btn"
+							data-must-change={session.must_change_password ? 'true' : 'false'}
+						>
+							<i class="ri-key-2-line text-warning"></i>
+							<span>{session.must_change_password ? '⚠️ Cambiar Contraseña (Obligatorio)' : 'Cambiar Contraseña'}</span>
+						</button>
+					</li>
+				</ul>
 			</div>
 		</div>
+
 		<button type="button" class="btn btn-sm btn-outline-danger w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5" id="logout-button">
 			<i class="ri-logout-box-line"></i>
 			<span>Cerrar sesión</span>

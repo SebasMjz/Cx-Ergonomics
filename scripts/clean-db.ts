@@ -15,6 +15,7 @@ import { StoreModel } from '../src/lib/models/Store';
 import { TagModel } from '../src/lib/models/Tag';
 import { CategoryModel } from '../src/lib/models/Category';
 import { FaqModel } from '../src/lib/models/Faq';
+import mongoose from 'mongoose';
 import { UserModel } from '../src/lib/models/User';
 import { uploadsRoot as defaultUploadsRoot } from '../src/lib/uploads/router';
 
@@ -59,7 +60,8 @@ async function main() {
 
   console.log('Esta acción eliminará datos de la base y archivos de uploads.');
   console.log(`Se conservará únicamente el usuario: ${adminEmail}`);
-  console.log('Colecciones que se eliminarán: Tickets, AuditLog, DistributorRequest, PointOfSale, Product, Banner, Wallpaper, Store, Tag, Category, Faq');
+  console.log('Colecciones que se eliminarán: Tickets, AuditLog, DistributorRequest, PointOfSale, Product, Wallpaper, Store, Tag, Category');
+  console.log('Se conservarán: Banners, Faqs y SiteSettings (mensajes personalizados y políticas).');
   console.log('También se eliminarán los ficheros en las carpetas de uploads y (si está) CATALOG_UPLOADS_DIR.');
 
   const confirmed = await askConfirmation('¿Continuar? (yes/no): ');
@@ -76,12 +78,12 @@ async function main() {
     ['DistributorRequests', DistributorRequestModel],
     ['PointsOfSale', PointOfSaleModel],
     ['Products', ProductModel],
-    ['Banners', BannerModel],
+    // Note: Banners and Faqs are intentionally preserved per request
     ['Wallpapers', WallpaperModel],
     ['Stores', StoreModel],
     ['Tags', TagModel],
     ['Categories', CategoryModel],
-    ['Faqs', FaqModel],
+    // Faqs preserved
   ];
 
   for (const [label, Model] of deletions) {
@@ -141,6 +143,13 @@ async function main() {
     }
   } catch (err) {
     console.error('Error limpiando CATALOG_UPLOADS_DIR:', err);
+  }
+
+  try {
+    await mongoose.disconnect();
+    console.log('Desconectado de MongoDB.');
+  } catch (e) {
+    console.warn('Error desconectando de MongoDB:', e);
   }
 
   console.log('Limpieza completada.');

@@ -55,9 +55,14 @@ const users = await UserModel.find().sort({ createdAt: -1 }).lean();
 								</td>
 								<td class="px-4 py-3 text-end">
 									{user._id.toString() !== session.sub ? (
-										<button type="button" class="btn btn-sm btn-outline-danger px-3 rounded-pill delete-user-btn" data-user-id={user._id.toString()} data-user-name={user.name}>
-											<i class="ri-delete-bin-line"></i> Eliminar
-										</button>
+										<div class="d-inline-flex gap-1">
+											<button type="button" class={`btn btn-sm px-2.5 rounded-pill toggle-active-btn ${user.is_active ? 'btn-outline-warning' : 'btn-outline-success'}`} data-user-id={user._id.toString()} data-user-name={user.name} data-active={user.is_active ? 'true' : 'false'}>
+												<i class={user.is_active ? 'ri-user-unfollow-line' : 'ri-user-follow-line'}></i> {user.is_active ? 'Desactivar' : 'Activar'}
+											</button>
+											<button type="button" class="btn btn-sm btn-outline-danger px-2.5 rounded-pill delete-user-btn" data-user-id={user._id.toString()} data-user-name={user.name}>
+												<i class="ri-delete-bin-line"></i> Eliminar
+											</button>
+										</div>
 									) : (
 										<span class="text-muted small fst-italic">Tu cuenta</span>
 									)}
@@ -170,6 +175,25 @@ const users = await UserModel.find().sort({ createdAt: -1 }).lean();
 			document.getElementById('confirm-action-submit-btn').addEventListener('click', () => {
 				if (pendingCallback) { pendingCallback(); pendingCallback = null; }
 				bs().Modal.getInstance(document.getElementById('confirmActionModal')).hide();
+			});
+
+			document.querySelectorAll('.toggle-active-btn').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const userId = btn.getAttribute('data-user-id');
+					const name = btn.getAttribute('data-user-name');
+					const isActive = btn.getAttribute('data-active') === 'true';
+					const actionText = isActive ? 'desactivar' : 'activar';
+					showConfirm(`${isActive ? 'Desactivar' : 'Activar'} Usuario`, `¿Deseas ${actionText} la cuenta de ${name}?`, async () => {
+						try {
+							const res = await fetch('/api/users/toggle-active', {
+								method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId }),
+							});
+							const data = await res.json();
+							if (!res.ok) throw new Error(data.error || 'Error al cambiar estado');
+							window.location.reload();
+						} catch (err) { alert('Error: ' + err.message); }
+					});
+				});
 			});
 
 			document.querySelectorAll('.delete-user-btn').forEach((btn) => {

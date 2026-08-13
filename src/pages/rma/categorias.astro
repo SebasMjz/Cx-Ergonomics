@@ -45,7 +45,7 @@ const categories = await CategoryModel.find().sort({ createdAt: -1 }).lean();
 							<tr data-id={cat._id.toString()} data-name={cat.name} data-description={cat.description || ''} data-image={cat.image || ''} data-active={String(cat.is_active)}>
 								<td class="px-4 py-3">
 									<div class="border rounded-2 overflow-hidden bg-light d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
-										<img src={cat.image || '/img/logo-cx-ergonomic.webp'} alt={cat.name} class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+										<img src={cat.image || '/img/logos/logo cx.png'} alt={cat.name} class="w-100 h-100 object-fit-cover" onerror="this.src='/img/logos/logo cx.png'" />
 									</div>
 								</td>
 								<td class="py-3 fw-bold text-dark">{cat.name}</td>

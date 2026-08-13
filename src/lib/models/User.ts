@@ -10,6 +10,7 @@ export interface IUser extends Document {
 	password: string;
 	role: UserRole;
 	is_active: boolean;
+	must_change_password?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const UserSchema = new Schema<IUser>(
 			default: 'technical',
 		},
 		is_active: { type: Boolean, default: true },
+		must_change_password: { type: Boolean, default: false },
 	},
 	{
 		timestamps: true,

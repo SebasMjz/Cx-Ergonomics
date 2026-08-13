@@ -62,7 +62,7 @@ const productsData = JSON.stringify(products.map((p) => ({
 				) : products.map((p) => (
 					<div class="product-row card border" data-id={p._id.toString()} data-search={`${p.name} ${p.sku} ${(p.category_id as any)?.name || ''}`.toLowerCase()}>
 						<div class="card-body p-2 d-flex align-items-center gap-3">
-							<img src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'} alt={p.name} style="width:54px;height:54px;object-fit:contain;background:#f3f4f6;border-radius:6px;" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+							<img src={p.images?.[0] || '/img/logos/logo cx.png'} alt={p.name} style="width:54px;height:54px;object-fit:contain;background:#f3f4f6;border-radius:6px;" onerror="this.src='/img/logos/logo cx.png'" />
 							<div class="flex-grow-1 min-w-0">
 								<div class="fw-bold text-truncate">{p.name} {!p.is_active && <span class="badge bg-secondary-subtle text-secondary ms-1">oculto</span>}</div>
 								<div class="small text-muted">SKU: {p.sku} · {(p.category_id as any)?.name || 'Sin categoría'}</div>
@@ -275,19 +275,13 @@ const productsData = JSON.stringify(products.map((p) => ({
 
 			// ---------- Preview ----------
 			function openPreview(p) {
-				const imgs = p.images && p.images.length ? p.images : ['/img/logo-cx-ergonomic.webp'];
-				const tagsHtml = (p.tags || []).map((t) => `<span class="badge me-1" style="background:${esc(t.color)};color:#000;border:1px solid rgba(0,0,0,.15);">${esc(t.name)}</span>`).join('');
+				const imgs = p.images && p.images.length ? p.images : ['/img/logos/logo cx.png'];
 				const hl = (p.highlights || []).map((h) => `<li>${esc(h)}</li>`).join('');
 				const specs = (p.spec_table || []).map((r) => `<tr><th class="text-muted fw-normal py-1" style="width:40%">${esc(r.label)}</th><td class="py-1 fw-semibold">${esc(r.value)}</td></tr>`).join('');
 				$('preview-body').innerHTML = `
-					<div class="row g-4">
-						<div class="col-12 col-md-5">
-							<div class="border rounded-3 d-flex align-items-center justify-content-center p-3" style="min-height:240px;background:#f8f9fa;">
-								<img src="${esc(imgs[0])}" style="max-width:100%;max-height:230px;object-fit:contain;" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
-							</div>
-							<div class="d-flex gap-2 mt-2 flex-wrap">
-								${imgs.slice(1).map((u) => `<img src="${esc(u)}" style="width:54px;height:54px;object-fit:contain;border:1px solid #eee;border-radius:6px;background:#f8f9fa;" />`).join('')}
-							</div>
+					<div class="row g-3">
+						<div class="col-12 col-md-5 text-center">
+							<img src="${esc(imgs[0])}" style="max-width:100%;max-height:230px;object-fit:contain;" onerror="this.src='/img/logos/logo cx.png'" />
 						</div>
 						<div class="col-12 col-md-7">
 							<div class="mb-2">${tagsHtml || ''}</div>

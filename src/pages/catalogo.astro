@@ -59,7 +59,7 @@ const productViews = products.map((p) => {
 			<div class="cat-tiles">
 				{categories.map((c) => (
 					<button class="cat-tile" data-cat={c.slug} type="button">
-						<img src={c.image || categoryImages[c.slug] || '/img/logo-cx-ergonomic.webp'} alt={c.name} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+						<img src={c.image || categoryImages[c.slug] || '/img/logos/logo cx.png'} alt={c.name} onerror="this.src='/img/logos/logo cx.png'" />
 						<span class="cat-tile-label">{c.name} <i class="ri-arrow-right-line"></i></span>
 					</button>
 				))}
@@ -114,7 +114,7 @@ const productViews = products.map((p) => {
 												))}
 											</div>
 										)}
-										<img src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'} alt={p.name} class="product-image" onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+										<img src={p.images?.[0] || '/img/logos/logo cx.png'} alt={p.name} class="product-image" onerror="this.src='/img/logos/logo cx.png'" />
 									</div>
 									<div class="product-info">
 										<div class="product-sku">SKU: {p.sku}</div>

@@ -21,7 +21,7 @@ if (!product) {
 
 const category = product.category_id as any;
 const tags = (product.tag_ids as any[]) || [];
-const images = product.images?.length ? product.images : ['/img/logo-cx-ergonomic.webp'];
+const images = product.images?.length ? product.images : ['/img/logos/logo cx.png'];
 
 const settings = await getSiteSettings();
 const whatsappNumber = settings.whatsapp_number_products || settings.whatsapp_number || '59170000000';
@@ -56,12 +56,12 @@ function contrastColor(hex: string) {
 						<div class="pdp-thumbs">
 							{images.map((img, i) => (
 								<button class={`pdp-thumb ${i === 0 ? 'active' : ''}`} data-img={img} type="button">
-									<img src={img} alt={`${product.name} ${i + 1}`} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+									<img src={img} alt={`${product.name} ${i + 1}`} onerror="this.src='/img/logos/logo cx.png'" />
 								</button>
 							))}
 						</div>
 						<div class="pdp-main-image">
-							<img id="pdp-main-img" src={images[0]} alt={product.name} onerror="this.src='/img/logo-cx-ergonomic.webp'" />
+							<img id="pdp-main-img" src={images[0]} alt={product.name} onerror="this.src='/img/logos/logo cx.png'" />
 						</div>
 					</div>
 				</div>

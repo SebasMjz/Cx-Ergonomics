@@ -10,6 +10,8 @@ const ticketParam = (Astro.url.searchParams.get('ticket') || '').trim();
 type TrackResult = {
 	ticket_number: string;
 	status: TicketStatus;
+	resolutionType?: string;
+	archived?: boolean;
 	isRejected: boolean;
 	customerName: string;
 	productName?: string;
@@ -38,6 +40,8 @@ if (ticketParam) {
 		result = {
 			ticket_number: t.ticket_number,
 			status: t.status,
+			resolutionType: t.resolution_type,
+			archived: !!t.archived,
 			isRejected: t.status === 'rechazada' || (t.status === 'finalizada' && t.resolution_type === 'rechazo'),
 			customerName: (t.customer_details?.name || '').split(' ')[0] || 'Cliente',
 			productName: t.product_name,
@@ -56,23 +60,41 @@ if (ticketParam) {
 	}
 }
 
-// Pasos del seguimiento (índice del paso activo)
+// 5 Pasos del seguimiento: Nueva solicitud -> En revisión -> En proceso -> Tipo de Resolución -> Finalizado (Archivado)
+const resLabel = result?.resolutionType === 'rechazo' ? 'Rechazo'
+	: result?.resolutionType === 'descuento' ? 'Descuento'
+	: result?.resolutionType === 'reponer' ? 'Reponer'
+	: (result?.status === 'finalizada' ? 'Resuelto' : 'Resolución');
+
 const steps = [
 	{ key: 'recibida', label: 'Nueva solicitud', icon: 'ri-inbox-line' },
 	{ key: 'en revision', label: 'En revisión', icon: 'ri-file-search-line' },
 	{ key: 'en proceso', label: 'En proceso', icon: 'ri-loader-4-line' },
-	result?.isRejected
-		? { key: 'rechazada', label: 'Rechazada', icon: 'ri-close-circle-line' }
-		: { key: 'finalizada', label: 'Finalizada', icon: 'ri-checkbox-circle-line' },
+	{ key: 'resolution', label: resLabel, icon: result?.isRejected ? 'ri-close-circle-line' : 'ri-shield-check-line' },
+	{ key: 'finalizada', label: 'Finalizado', icon: 'ri-archive-line' },
 ];
-const activeStep = result
-	? (result.isRejected ? 3 : steps.findIndex((s) => s.key === result!.status))
-	: -1;
+
+let activeStep = -1;
+if (result) {
+	if (result.archived) {
+		activeStep = 4; // Finalizado (Archivado)
+	} else if (result.status === 'finalizada' || result.status === 'rechazada' || result.resolutionType) {
+		activeStep = 3; // Resolución
+	} else if (result.status === 'en proceso') {
+		activeStep = 2; // En proceso
+	} else if (result.status === 'en revision') {
+		activeStep = 1; // En revisión
+	} else {
+		activeStep = 0; // Nueva solicitud
+	}
+}
 ---
 
 <html lang="es" data-bs-theme="light">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/img/logos/logo cx.png" />
+		<link rel="shortcut icon" href="/img/logos/logo cx.png" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -173,11 +195,14 @@ const activeStep = result
 														const ext = url.split('.').pop()?.toLowerCase() || '';
 														const isVid = ['mp4', 'webm', 'mov'].includes(ext);
 														return isVid ? (
-															<video src={url} controls class="rounded border shadow-sm" style="max-width: 240px; max-height: 180px; object-fit: cover;" preload="metadata"></video>
+															<button type="button" class="btn p-0 rounded border overflow-hidden position-relative media-preview-btn" data-url={url} data-title="Video Adjunto" style="max-width: 240px; max-height: 180px;">
+																<video src={url} class="w-100 h-100 object-fit-cover" preload="metadata"></video>
+																<div class="position-absolute top-50 start-50 translate-middle text-white fs-3"><i class="ri-play-circle-fill"></i></div>
+															</button>
 														) : (
-															<a href={url} target="_blank" rel="noopener" class="track-attach border rounded overflow-hidden d-flex align-items-center justify-content-center bg-light">
+															<button type="button" class="btn p-0 track-attach border rounded overflow-hidden d-flex align-items-center justify-content-center bg-light media-preview-btn" data-url={url} data-title="Foto Adjunta">
 																<img src={url} alt="Adjunto" style="max-width: 100%; max-height: 100%; object-fit: cover;" />
-															</a>
+															</button>
 														);
 													})}
 												</div>
@@ -221,7 +246,7 @@ const activeStep = result
 			}
 			.cx-watermark {
 				position: fixed; inset: 0; z-index: 0; pointer-events: none;
-				background-image: url('/img/logo-cx-ergonomic.webp');
+				background-image: url('/img/logos/logo cx.png');
 				background-repeat: repeat; background-size: 240px auto;
 				filter: invert(1) grayscale(1); opacity: 0.06;
 			}
@@ -273,13 +298,41 @@ const activeStep = result
 				function render() {
 					if (!preview) return;
 					preview.innerHTML = urls.map((url, i) => {
-						const ext = url.split('.').pop()?.toLowerCase();
-						const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
-						return `<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light">
-							<span class="small text-truncate" style="max-width: 220px;">${isVideo ? '🎬' : '🖼️'} ${url.split('/').pop()}</span>
-							<button type="button" class="btn btn-sm btn-link text-danger p-0 rm-att" data-i="${i}">Quitar</button>
-						</div>`;
+						const ext = (url.split('.').pop() || '').toLowerCase();
+						const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+						const isPdf = ext === 'pdf';
+						const filename = url.split('/').pop() || 'Archivo';
+
+						let thumbHtml = '';
+						if (isVideo) {
+							thumbHtml = `<div class="bg-dark rounded overflow-hidden position-relative d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
+								<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
+								<i class="ri-play-circle-fill text-white position-absolute fs-5"></i>
+							</div>`;
+						} else if (isPdf) {
+							thumbHtml = `<div class="bg-danger-subtle text-danger rounded d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
+								<i class="ri-file-pdf-line fs-4"></i>
+							</div>`;
+						} else {
+							thumbHtml = `<img src="${url}" alt="Preview" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`;
+						}
+
+						return `
+							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+								<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+									${thumbHtml}
+									<div class="d-flex flex-column overflow-hidden">
+										<span class="small fw-bold text-dark text-truncate" style="max-width: 200px;">${filename}</span>
+										<span class="text-muted" style="font-size: 0.7rem;">${isVideo ? 'Video' : isPdf ? 'Documento PDF' : 'Imagen'}</span>
+									</div>
+								</div>
+								<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 rm-att" data-i="${i}" style="font-size: 0.75rem;">
+									<i class="ri-delete-bin-line me-1"></i>Quitar
+								</button>
+							</div>
+						`;
 					}).join('');
+
 					preview.querySelectorAll('.rm-att').forEach((b) => b.addEventListener('click', () => {
 						urls.splice(parseInt(b.getAttribute('data-i') || '0', 10), 1); render();
 					}));
@@ -305,13 +358,24 @@ const activeStep = result
 					const files = input.files;
 					if (!files || !files.length) return;
 					const label = zone?.querySelector('.upload-label');
-					for (const file of Array.from(files)) {
-						if (urls.length >= 5) { alert('Máximo 5 archivos.'); break; }
-						try { if (label) label.textContent = `Subiendo ${file.name}...`; urls.push(await uploadFile(file)); render(); }
-						catch (e: any) { if (errEl) { errEl.textContent = e.message; errEl.classList.remove('d-none'); } }
+					try {
+						sendBtn.disabled = true;
+						sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Subiendo archivos...';
+
+						for (const file of Array.from(files)) {
+							if (urls.length >= 5) { alert('Máximo 5 archivos.'); break; }
+							if (label) label.textContent = `Subiendo ${file.name}...`;
+							urls.push(await uploadFile(file));
+							render();
+						}
+					} catch (e: any) {
+						if (errEl) { errEl.textContent = e.message; errEl.classList.remove('d-none'); }
+					} finally {
+						sendBtn.disabled = false;
+						sendBtn.innerHTML = '<i class="ri-send-plane-line me-1"></i> Enviar mensaje';
+						if (label) label.textContent = 'Adjuntar fotos o videos (máx. 5)';
+						input.value = '';
 					}
-					if (label) label.textContent = 'Adjuntar fotos o videos (máx. 5)';
-					input.value = '';
 				});
 
 				sendBtn.addEventListener('click', async () => {
@@ -338,7 +402,65 @@ const activeStep = result
 						sendBtn.innerHTML = '<i class="ri-send-plane-line me-1"></i> Enviar mensaje';
 					}
 				});
+				// Media Preview Lightbox handler
+				document.querySelectorAll('.media-preview-btn').forEach(btn => {
+					btn.addEventListener('click', (e) => {
+						e.preventDefault();
+						const url = btn.getAttribute('data-url');
+						const title = btn.getAttribute('data-title') || 'Previsualización';
+						if (!url) return;
+
+						const modalEl = document.getElementById('mediaPreviewModal');
+						const container = document.getElementById('media-preview-container');
+						const titleEl = document.getElementById('media-preview-title');
+						const downloadLink = document.getElementById('media-preview-download') as HTMLAnchorElement | null;
+
+						if (!modalEl || !container) return;
+
+						if (titleEl) titleEl.innerHTML = `<i class="ri-eye-line me-2 text-info"></i>${title}`;
+						if (downloadLink) downloadLink.href = url;
+
+						const ext = (url.split('.').pop() || '').toLowerCase();
+						const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+						const isPdf = ext === 'pdf';
+
+						if (isVideo) {
+							container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
+						} else if (isPdf) {
+							container.innerHTML = `<iframe src="${url}" style="width:100%; height:70vh; border:none;" class="rounded bg-white"></iframe>`;
+						} else {
+							container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;
+						}
+
+						// @ts-ignore
+						const modal = window.bootstrap?.Modal?.getOrCreateInstance(modalEl);
+						modal?.show();
+					});
+				});
 			});
 		</script>
+
+		<!-- Media Preview Lightbox Modal -->
+		<div class="modal fade" id="mediaPreviewModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+			<div class="modal-dialog modal-dialog-centered modal-lg">
+				<div class="modal-content bg-dark border-0 shadow-lg text-white rounded-4 overflow-hidden">
+					<div class="modal-header border-bottom border-secondary py-2.5 px-3">
+						<h6 class="modal-title fw-bold mb-0 text-white" id="media-preview-title"><i class="ri-eye-line me-2 text-info"></i>Previsualización</h6>
+						<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+					</div>
+					<div class="modal-body p-3 text-center d-flex align-items-center justify-content-center bg-black bg-opacity-50" style="min-height: 380px; max-height: 75vh; overflow: auto;" id="media-preview-container">
+						<!-- Dynamically populated img, video or iframe -->
+					</div>
+					<div class="modal-footer border-top border-secondary py-2 px-3 justify-content-between">
+						<a href="#" target="_blank" rel="noopener" id="media-preview-download" class="btn btn-sm btn-outline-light rounded-pill">
+							<i class="ri-external-link-line me-1"></i>Abrir archivo completo
+						</a>
+						<button type="button" class="btn btn-sm btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 	</body>
 </html>

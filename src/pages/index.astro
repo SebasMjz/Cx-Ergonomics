@@ -85,6 +85,8 @@ function youtubeEmbed(urlOrId: string) {
 <html lang="es" data-bs-theme="dark">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/img/logos/logo cx.png" />
+		<link rel="shortcut icon" href="/img/logos/logo cx.png" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0" />
@@ -589,10 +591,10 @@ function youtubeEmbed(urlOrId: string) {
 						<div class="col-6 col-lg-4">
 							<div class="category-card" data-slug={cat.slug}>
 								<img
-									src={cat.image || categoryImages[cat.slug] || '/img/logo-cx-ergonomic.webp'}
+									src={cat.image || categoryImages[cat.slug] || '/img/logos/logo cx.png'}
 									alt={cat.name}
 									class="category-image"
-									onerror="this.src='/img/logo-cx-ergonomic.webp'"
+									onerror="this.src='/img/logos/logo cx.png'"
 								/>
 								<div class="category-label">
 									<span><span class="slashes">//</span>{cat.name}</span>
@@ -620,16 +622,16 @@ function youtubeEmbed(urlOrId: string) {
 								<div class="product-image-wrapper">
 									{badges.length > 0 && (
 										<div class="product-tags">
-											{badges.map((t) => (
+											{badges.map((t: any) => (
 												<span class="tag-badge" style={`background:${t.color}; color:${contrastColor(t.color)};`}>{t.name}</span>
 											))}
 										</div>
 									)}
 									<img
-										src={p.images?.[0] || '/img/logo-cx-ergonomic.webp'}
+										src={p.images?.[0] || '/img/logos/logo cx.png'}
 										alt={p.name}
 										class="product-image"
-										onerror="this.src='/img/logo-cx-ergonomic.webp'"
+										onerror="this.src='/img/logos/logo cx.png'"
 									/>
 								</div>
 								<div class="product-info">
@@ -654,8 +656,7 @@ function youtubeEmbed(urlOrId: string) {
 				<div class="row g-4">
 					<div class="col-12 col-lg-4">
 						<div class="brand mb-3">
-							<img src="/img/logo-cx-ergonomic.webp" alt="CX Ergonomic" style="max-height: 26px;" onerror="this.style.display='none'" />
-							
+							<img src="/img/logos/logo cx.png" alt="CX Ergonomic" style="max-height: 32px;" onerror="this.style.display='none'" />
 						</div>
 						<p style="color: var(--text-muted); max-width: 38ch; font-size: 0.92rem;">
 							Mobiliario ergonomico y componentes de alto rendimiento para tu espacio de trabajo.

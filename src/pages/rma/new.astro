@@ -11,6 +11,8 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 <html lang="es" data-bs-theme="light">
 	<head>
 		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/img/logos/logo cx.png" />
+		<link rel="shortcut icon" href="/img/logos/logo cx.png" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1.0, viewport-fit=cover" />
@@ -119,25 +121,28 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 									<button class="btn btn-dark fw-semibold" type="button" id="search-store-btn">
 										<i class="ri-search-line me-1"></i>Buscar
 									</button>
+									<button class="btn btn-outline-secondary fw-semibold" type="button" id="clear-store-btn">
+										<i class="ri-close-line me-1"></i>Limpiar
+									</button>
 								</div>
 								<div class="form-text small text-muted">Ingresa tu código de tienda frecuente para autocompletar tus datos.</div>
 								<div id="store-search-alert" class="alert d-none py-2 px-3 mt-2 mb-0 small" role="alert"></div>
 							</div>
 							
-							<!-- Store Manager details (Optional, shown only when store verified) -->
+							<!-- Store Manager details (Mandatory when store verified) -->
 							<div id="store-manager-container" class="d-none bg-light-subtle p-3 rounded border mb-4">
-								<h6 class="fw-bold text-dark mb-2" style="font-size: 0.85rem;"><i class="ri-user-settings-line me-1"></i>Encargado / Responsable (Opcional)</h6>
+								<h6 class="fw-bold text-dark mb-2" style="font-size: 0.85rem;"><i class="ri-user-settings-line me-1"></i>Encargado / Responsable (Obligatorio) <span class="text-danger">*</span></h6>
 								<div class="row g-2">
 									<div class="col-12 col-sm-6">
-										<label for="storeManagerName" class="form-label text-muted small fw-bold">Nombre del Encargado</label>
+										<label for="storeManagerName" class="form-label text-muted small fw-bold">Nombre del Encargado <span class="text-danger">*</span></label>
 										<input type="text" class="form-control" id="storeManagerName" placeholder="Ej. Carlos Mendoza" />
 									</div>
 									<div class="col-12 col-sm-6">
-										<label for="storeManagerPhone" class="form-label text-muted small fw-bold">Teléfono del Encargado</label>
+										<label for="storeManagerPhone" class="form-label text-muted small fw-bold">Teléfono del Encargado <span class="text-danger">*</span></label>
 										<input type="tel" class="form-control" id="storeManagerPhone" placeholder="Ej. 70512345" />
 									</div>
 								</div>
-								<div class="form-text small text-muted" style="font-size: 0.72rem;">Si se registra un encargado, las notificaciones de WhatsApp se mandaran a su número.</div>
+								<div class="form-text small text-muted" style="font-size: 0.72rem;">Las notificaciones de WhatsApp se enviarán al número del encargado.</div>
 							</div>
 							
 							<div class="row g-3 mb-4">
@@ -258,24 +263,41 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							<h5 class="h6 mb-3 fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em;">3. Archivos y Evidencias</h5>
 							
 							<div class="row g-3 mb-5">
-								<!-- Receipt Image Upload -->
-								<div class="col-12 col-sm-6">
-									<label class="form-label text-muted small fw-bold">Foto de Recibo / Nota / Factura de compra (1 requerida)</label>
+								<!-- Receipt Image / PDF Upload -->
+								<div class="col-12 col-md-4">
+									<label class="form-label text-muted small fw-bold">Foto de Recibo / Nota / Factura (1 requerida)</label>
 									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="receipt-upload-zone" style="cursor: pointer; min-height: 120px;">
 										<i class="ri-file-paper-line fs-1 text-muted mb-2 d-block"></i>
-										<span class="small d-block text-secondary fw-semibold upload-label">Seleccionar imagen</span>
-										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP</span>
-										<input type="file" id="receipt-file" class="d-none" accept="image/*" />
+										<span class="small d-block text-secondary fw-semibold upload-label">Seleccionar recibo o PDF</span>
+										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP, PDF</span>
+										<input type="file" id="receipt-file" class="d-none" accept="image/*,.pdf" />
 									</div>
 									<div class="progress mt-2 d-none" id="receipt-progress-container" style="height: 6px;">
 										<div class="progress-bar bg-dark" role="progressbar" id="receipt-progress-bar" style="width: 0%;"></div>
 									</div>
 									<small class="text-success d-none mt-1" id="receipt-success-label"><i class="ri-checkbox-circle-line me-1"></i>Factura subida con éxito</small>
+									<div id="receipt-preview-container" class="mt-2"></div>
+								</div>
+
+								<!-- S/N Product + Box Photo Upload (New) -->
+								<div class="col-12 col-md-4">
+									<label class="form-label text-muted small fw-bold">Foto S/N Producto y Caja (1 requerida) <span class="text-danger">*</span></label>
+									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="sn-upload-zone" style="cursor: pointer; min-height: 120px;">
+										<i class="ri-barcode-box-line fs-1 text-muted mb-2 d-block"></i>
+										<span class="small d-block text-secondary fw-semibold upload-label">Foto de S/N Producto y Caja</span>
+										<span class="small d-block text-muted" style="font-size: 0.72rem;">1 foto que muestre ambos S/N</span>
+										<input type="file" id="sn-file" class="d-none" accept="image/*" />
+									</div>
+									<div class="progress mt-2 d-none" id="sn-progress-container" style="height: 6px;">
+										<div class="progress-bar bg-dark" role="progressbar" id="sn-progress-bar" style="width: 0%;"></div>
+									</div>
+									<small class="text-success d-none mt-1" id="sn-success-label"><i class="ri-checkbox-circle-line me-1"></i>Foto S/N subida con éxito</small>
+									<div id="sn-preview-container" class="mt-2"></div>
 								</div>
 
 								<!-- Evidence Files Upload (Multiple: Images or Videos) -->
-								<div class="col-12 col-sm-6">
-									<label class="form-label text-muted small fw-bold">Evidencias de Falla (máx. 3. Fotos y/o videos)</label>
+								<div class="col-12 col-md-4">
+									<label class="form-label text-muted small fw-bold">Evidencias de Falla (1 a 3 archivos)</label>
 									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="evidence-upload-zone" style="cursor: pointer; min-height: 120px;">
 										<i class="ri-folder-video-line fs-1 text-muted mb-2 d-block"></i>
 										<span class="small d-block text-secondary fw-semibold upload-label">Subir fotos y/o videos</span>
@@ -377,7 +399,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 				inset: 0;
 				z-index: 0;
 				pointer-events: none;
-				background-image: url('/img/logo-cx-ergonomic.webp');
+				background-image: url('/img/logos/logo cx.png');
 				background-repeat: repeat;
 				background-size: 240px auto;
 				/* El logo es blanco: lo invertimos a oscuro para que contraste sobre el fondo claro. */
@@ -500,6 +522,29 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 				const storeCodeInput = document.getElementById('storeClientCode') as HTMLInputElement | null;
 				const storeAlert = document.getElementById('store-search-alert');
 
+				const clearStoreBtn = document.getElementById('clear-store-btn');
+
+				storeCodeInput?.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						searchStoreBtn?.click();
+					}
+				});
+
+				clearStoreBtn?.addEventListener('click', () => {
+					if (storeCodeInput) storeCodeInput.value = '';
+					if (storeAlert) storeAlert.classList.add('d-none');
+					document.getElementById('store-manager-container')?.classList.add('d-none');
+					const mName = document.getElementById('storeManagerName') as HTMLInputElement | null;
+					const mPhone = document.getElementById('storeManagerPhone') as HTMLInputElement | null;
+					if (mName) { mName.value = ''; mName.required = false; }
+					if (mPhone) { mPhone.value = ''; mPhone.required = false; }
+					['customerName', 'customerCi', 'customerPhone', 'customerCity'].forEach(id => {
+						const input = document.getElementById(id) as HTMLInputElement | null;
+						if (input) { input.readOnly = false; input.value = ''; }
+					});
+				});
+
 				toggleStoreBtn?.addEventListener('click', () => {
 					storeContainer?.classList.toggle('d-none');
 					if (storeContainer?.classList.contains('d-none')) {
@@ -507,8 +552,8 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 						document.getElementById('store-manager-container')?.classList.add('d-none');
 						const managerName = document.getElementById('storeManagerName') as HTMLInputElement | null;
 						const managerPhone = document.getElementById('storeManagerPhone') as HTMLInputElement | null;
-						if (managerName) managerName.value = '';
-						if (managerPhone) managerPhone.value = '';
+						if (managerName) { managerName.value = ''; managerName.required = false; }
+						if (managerPhone) { managerPhone.value = ''; managerPhone.required = false; }
 						// Unlock inputs if hidden
 						['customerName', 'customerCi', 'customerPhone', 'customerCity'].forEach(id => {
 							const input = document.getElementById(id) as HTMLInputElement | null;
@@ -547,8 +592,13 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 
 						// Store found: autocomplete fields
 						const store = data.store;
-						// Show store manager details panel
-						document.getElementById('store-manager-container')?.classList.remove('d-none');
+						// Show store manager details panel and require fields
+						const mgrContainer = document.getElementById('store-manager-container');
+						if (mgrContainer) mgrContainer.classList.remove('d-none');
+						const managerName = document.getElementById('storeManagerName') as HTMLInputElement | null;
+						const managerPhone = document.getElementById('storeManagerPhone') as HTMLInputElement | null;
+						if (managerName) managerName.required = true;
+						if (managerPhone) managerPhone.required = true;
 						const fields = {
 							customerName: store.name,
 							customerCi: store.ci,
@@ -652,6 +702,8 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 				const form = document.querySelector<HTMLFormElement>('#public-rma-form');
 				const receiptZone = document.querySelector<HTMLElement>('#receipt-upload-zone');
 				const receiptInput = document.querySelector<HTMLInputElement>('#receipt-file');
+				const snZone = document.querySelector<HTMLElement>('#sn-upload-zone');
+				const snInput = document.querySelector<HTMLInputElement>('#sn-file');
 				const evidenceZone = document.querySelector<HTMLElement>('#evidence-upload-zone');
 				const evidenceInput = document.querySelector<HTMLInputElement>('#evidence-file');
 				
@@ -663,10 +715,12 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 				const loaderOverlay = document.querySelector<HTMLElement>('#loader-overlay');
 
 				let receiptUrl = '';
+				let snUrl = '';
 				let evidenceUrls: string[] = [];
 
 				// Setup File Selection triggers
 				receiptZone?.addEventListener('click', () => receiptInput?.click());
+				snZone?.addEventListener('click', () => snInput?.click());
 				evidenceZone?.addEventListener('click', () => evidenceInput?.click());
 
 				// Upload file helper function
@@ -718,27 +772,124 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 					const progressContainer = document.querySelector('#receipt-progress-container');
 					const progressBar = document.querySelector('#receipt-progress-bar') as HTMLElement;
 					const successLabel = document.querySelector('#receipt-success-label');
+					const previewContainer = document.getElementById('receipt-preview-container');
+					const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement | null;
 
 					try {
 						errorAlert?.classList.add('d-none');
 						if (label) label.textContent = 'Subiendo...';
 						progressContainer?.classList.remove('d-none');
 						if (successLabel) successLabel.classList.add('d-none');
+						if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Subiendo factura...'; }
 
 						receiptUrl = await uploadFile(file, 'receipt', (pct) => {
 							if (progressBar) progressBar.style.width = `${pct}%`;
 						});
 
-						if (label) label.textContent = file.name;
+						if (label) label.textContent = 'Cambiar factura';
 						if (successLabel) successLabel.classList.remove('d-none');
+
+						const isPdf = file.name.toLowerCase().endsWith('.pdf');
+						if (previewContainer) {
+							previewContainer.innerHTML = `
+								<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+									<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+										${isPdf 
+											? `<div class="bg-danger-subtle text-danger rounded d-flex align-items-center justify-content-center" style="width:48px; height:48px;"><i class="ri-file-pdf-line fs-4"></i></div>`
+											: `<img src="${receiptUrl}" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`}
+										<div class="d-flex flex-column overflow-hidden">
+											<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
+											<span class="text-muted" style="font-size: 0.7rem;">${isPdf ? 'Documento PDF' : 'Factura de compra'}</span>
+										</div>
+									</div>
+									<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-receipt-btn" style="font-size: 0.75rem;">
+										<i class="ri-delete-bin-line me-1"></i>Quitar
+									</button>
+								</div>
+							`;
+							document.getElementById('remove-receipt-btn')?.addEventListener('click', (e) => {
+								e.stopPropagation();
+								receiptUrl = '';
+								if (receiptInput) receiptInput.value = '';
+								if (previewContainer) previewContainer.innerHTML = '';
+								if (label) label.textContent = 'Foto de Recibo / Nota / Factura';
+								if (successLabel) successLabel.classList.add('d-none');
+							});
+						}
 					} catch (err: any) {
-						if (label) label.textContent = 'Seleccionar imagen';
+						if (label) label.textContent = 'Foto de Recibo / Nota / Factura';
 						progressContainer?.classList.add('d-none');
 						if (errorAlert) {
 							errorAlert.textContent = `Error al subir la factura: ${err.message}`;
 							errorAlert.classList.remove('d-none');
 						}
 						receiptInput.value = '';
+					} finally {
+						if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar Solicitud de Garantía'; }
+					}
+				});
+
+				// Handle Product S/N + Box Photo selection
+				snInput?.addEventListener('change', async () => {
+					const files = snInput.files;
+					if (!files || files.length === 0) return;
+
+					const file = files[0];
+					const label = snZone?.querySelector('.upload-label');
+					const progressContainer = document.querySelector('#sn-progress-container');
+					const progressBar = document.querySelector('#sn-progress-bar') as HTMLElement;
+					const successLabel = document.querySelector('#sn-success-label');
+					const previewContainer = document.getElementById('sn-preview-container');
+					const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement | null;
+
+					try {
+						errorAlert?.classList.add('d-none');
+						if (label) label.textContent = 'Subiendo...';
+						progressContainer?.classList.remove('d-none');
+						if (successLabel) successLabel.classList.add('d-none');
+						if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Subiendo foto S/N...'; }
+
+						snUrl = await uploadFile(file, 'receipt', (pct) => {
+							if (progressBar) progressBar.style.width = `${pct}%`;
+						});
+
+						if (label) label.textContent = 'Cambiar Foto S/N';
+						if (successLabel) successLabel.classList.remove('d-none');
+
+						if (previewContainer) {
+							previewContainer.innerHTML = `
+								<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+									<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+										<img src="${snUrl}" class="rounded object-fit-cover border" style="width:48px; height:48px;" />
+										<div class="d-flex flex-column overflow-hidden">
+											<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
+											<span class="text-muted" style="font-size: 0.7rem;">Foto S/N Producto y Caja</span>
+										</div>
+									</div>
+									<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-sn-btn" style="font-size: 0.75rem;">
+										<i class="ri-delete-bin-line me-1"></i>Quitar
+									</button>
+								</div>
+							`;
+							document.getElementById('remove-sn-btn')?.addEventListener('click', (e) => {
+								e.stopPropagation();
+								snUrl = '';
+								if (snInput) snInput.value = '';
+								if (previewContainer) previewContainer.innerHTML = '';
+								if (label) label.textContent = 'Foto de S/N Producto y Caja';
+								if (successLabel) successLabel.classList.add('d-none');
+							});
+						}
+					} catch (err: any) {
+						if (label) label.textContent = 'Foto de S/N Producto y Caja';
+						progressContainer?.classList.add('d-none');
+						if (errorAlert) {
+							errorAlert.textContent = `Error al subir la foto de S/N: ${err.message}`;
+							errorAlert.classList.remove('d-none');
+						}
+						snInput.value = '';
+					} finally {
+						if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Enviar Solicitud de Garantía'; }
 					}
 				});
 
@@ -748,16 +899,31 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 					if (!list) return;
 					
 					list.innerHTML = evidenceUrls.map((url, idx) => {
-						const ext = url.split('.').pop()?.toLowerCase();
-						const isVideo = ['mp4', 'mov', 'webm'].includes(ext || '');
+						const ext = (url.split('.').pop() || '').toLowerCase();
+						const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+						const filename = url.split('/').pop() || 'Evidencia';
+
+						let thumbHtml = '';
+						if (isVideo) {
+							thumbHtml = `<div class="bg-dark rounded overflow-hidden position-relative d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
+								<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
+								<i class="ri-play-circle-fill text-white position-absolute fs-5"></i>
+							</div>`;
+						} else {
+							thumbHtml = `<img src="${url}" alt="Evidencia" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`;
+						}
+
 						return `
-							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light">
-								<div class="d-flex align-items-center gap-2 overflow-hidden">
-									${isVideo ? '<i class="ri-video-line text-primary fs-5"></i>' : '<i class="ri-image-line text-success fs-5"></i>'}
-									<span class="small text-truncate" style="max-width: 180px;">${url.split('/').pop()}</span>
+							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+								<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+									${thumbHtml}
+									<div class="d-flex flex-column overflow-hidden">
+										<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${filename}</span>
+										<span class="text-muted" style="font-size: 0.7rem;">${isVideo ? 'Video' : 'Foto'} ${idx + 1}</span>
+									</div>
 								</div>
-								<button type="button" class="btn btn-sm btn-link text-danger p-0 delete-evidence-btn" data-index="${idx}">
-									<i class="ri-delete-bin-line"></i> Quitar
+								<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 delete-evidence-btn" data-index="${idx}" style="font-size: 0.75rem;">
+									<i class="ri-delete-bin-line me-1"></i>Quitar
 								</button>
 							</div>
 						`;
@@ -857,10 +1023,18 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 						return;
 					}
 
-					// Validation: Factura is 1 photo, and evidence is min 1 and max 3 files (either photo or video)
+					// Validation: Factura, foto S/N, and evidence
 					if (!receiptUrl) {
 						if (errorAlert) {
-							errorAlert.textContent = 'Debes subir la factura de compra (1 foto).';
+							errorAlert.textContent = 'Debes subir la foto de recibo / factura o documento PDF.';
+							errorAlert.classList.remove('d-none');
+						}
+						return;
+					}
+
+					if (!snUrl) {
+						if (errorAlert) {
+							errorAlert.textContent = 'Debes subir la foto del S/N del producto y de la caja.';
 							errorAlert.classList.remove('d-none');
 						}
 						return;
@@ -872,6 +1046,20 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							errorAlert.classList.remove('d-none');
 						}
 						return;
+					}
+
+					// Validate mandatory store manager fields if store container is active
+					const storeMgrContainer = document.getElementById('store-manager-container');
+					if (storeMgrContainer && !storeMgrContainer.classList.contains('d-none')) {
+						const mName = String((document.getElementById('storeManagerName') as HTMLInputElement | null)?.value ?? '').trim();
+						const mPhone = String((document.getElementById('storeManagerPhone') as HTMLInputElement | null)?.value ?? '').trim();
+						if (!mName || !mPhone) {
+							if (errorAlert) {
+								errorAlert.textContent = 'Los campos de Encargado (Nombre y Teléfono) son obligatorios para tiendas/socios.';
+								errorAlert.classList.remove('d-none');
+							}
+							return;
+						}
 					}
 
 					try {
@@ -891,6 +1079,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							storeManagerPhone: String((document.getElementById('storeManagerPhone') as HTMLInputElement | null)?.value ?? ''),
 							issueDescription: String(document.querySelector<HTMLTextAreaElement>('#issueDescription')?.value ?? ''),
 							salesReceiptImage: receiptUrl,
+							productSnImage: snUrl,
 							evidenceVideo: evidenceUrls.join(','), // Send as comma-separated list
 						};
 

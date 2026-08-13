@@ -38,6 +38,7 @@ export interface ITicket extends Document {
 	store_manager_name?: string;
 	store_manager_phone?: string;
 	sales_receipt_image: string;
+	product_sn_image?: string;
 	issue_description: string;
 	evidence_video: string;
 	status: TicketStatus;
@@ -100,6 +101,7 @@ const TicketSchema = new Schema<ITicket>(
 		store_manager_name: { type: String, trim: true },
 		store_manager_phone: { type: String, trim: true },
 		sales_receipt_image: { type: String, required: true },
+		product_sn_image: { type: String },
 		issue_description: { type: String, required: true },
 		evidence_video: { type: String, required: true },
 		status: {

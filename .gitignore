@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Do not commit uploaded files (managed externally on the VPS)
+uploads/

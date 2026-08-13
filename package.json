@@ -13,6 +13,7 @@
     "server:dev": "tsx server/index.ts",
     "server:prod": "node --import tsx/esm server/index.ts",
     "seed": "tsx scripts/seed.ts",
+    "clean-db": "tsx scripts/clean-db.ts",
     "check": "astro check",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",

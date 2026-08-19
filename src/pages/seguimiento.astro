@@ -7,6 +7,9 @@ import { TicketModel, type TicketStatus } from '../lib/models/Ticket';
 
 const ticketParam = (Astro.url.searchParams.get('ticket') || '').trim();
 
+const statusLabels: Record<string, string> = { 'recibida': 'Nueva solicitud', 'en revision': 'En revisión', 'en proceso': 'En proceso', 'finalizada': 'Finalizada', 'rechazada': 'Rechazada' };
+const statusBadgeClasses: Record<string, string> = { 'recibida': 'bg-primary-subtle text-primary', 'en revision': 'bg-info-subtle text-info', 'en proceso': 'bg-warning-subtle text-warning', 'finalizada': 'bg-success-subtle text-success', 'rechazada': 'bg-danger-subtle text-danger' };
+
 type TrackResult = {
 	ticket_number: string;
 	status: TicketStatus;
@@ -19,7 +22,9 @@ type TrackResult = {
 	productSerialNumber: string;
 	createdAtStr: string;
 	updatedAtStr: string;
-	comments: Array<{ note: string; dateStr: string; fromClient: boolean; author: string; attachments: string[] }>;
+	lastStatusLabel: string;
+	lastStatusDateStr: string;
+	comments: Array<{ note: string; dateStr: string; fromClient: boolean; author: string; attachments: string[]; status?: string; statusLabel?: string }>;
 };
 
 let result: TrackResult | null = null;
@@ -37,6 +42,9 @@ if (ticketParam) {
 		notFound = true;
 	} else {
 		const externals = (t.history || []).filter((h: any) => h.visibility === 'external');
+		const lastHistoryItem = (t.history || []).slice().sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+		const lastStatusLabel = lastHistoryItem ? (statusLabels[lastHistoryItem.status] || statusLabels[t.status] || 'En proceso') : (statusLabels[t.status] || 'Nueva solicitud');
+		const lastStatusDateStr = lastHistoryItem ? fmt(lastHistoryItem.updated_at) : fmt(t.updatedAt);
 		result = {
 			ticket_number: t.ticket_number,
 			status: t.status,
@@ -49,12 +57,16 @@ if (ticketParam) {
 			productSerialNumber: t.product_serial_number,
 			createdAtStr: fmt(t.createdAt),
 			updatedAtStr: fmt(t.updatedAt),
+			lastStatusLabel,
+			lastStatusDateStr,
 			comments: externals.map((h: any) => ({
 				note: h.note || '',
 				dateStr: fmt(h.updated_at),
 				fromClient: !!h.from_client,
 				author: h.from_client ? 'Tú' : 'Soporte',
 				attachments: Array.isArray(h.attachments) ? h.attachments : [],
+				status: h.status,
+				statusLabel: statusLabels[h.status] || '',
 			})),
 		};
 	}
@@ -141,30 +153,33 @@ if (result) {
 
 					{result && (
 						<div class="card shadow-sm border border-light-subtle rounded-3 p-4 p-md-5 bg-body">
-							<!-- Encabezado del caso -->
-							<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4 pb-3 border-bottom">
-								<div>
-									<span class="text-muted small d-block text-uppercase" style="letter-spacing: 0.05em; font-size: 0.7rem;">Caso / Seguimiento</span>
-									<strong class="h4 text-dark fw-bold d-block font-monospace">{result.ticket_number}</strong>
-									<span class="text-muted small">Hola {result.customerName}, registrado el {result.createdAtStr}</span>
-									<div class="mt-2 text-muted small bg-light p-2 rounded">
-										<strong>Producto:</strong> {result.productName || '—'} &nbsp;|&nbsp; 
-										<strong>Marca:</strong> {result.productBrand || '—'} &nbsp;|&nbsp; 
-										<strong>Serial:</strong> {result.productSerialNumber}
-									</div>
+						<!-- Encabezado del caso -->
+						<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4 pb-3 border-bottom">
+							<div>
+								<span class="text-muted small d-block text-uppercase" style="letter-spacing: 0.05em; font-size: 0.7rem;">Caso / Seguimiento</span>
+								<strong class="h5 text-dark fw-bold d-block" style="font-size: 1.1rem;">
+									{result.isRejected ? 'Solicitud rechazada' : result.status === 'finalizada' ? 'Caso finalizado' : `Caso ${result.lastStatusLabel}`}
+									<span class="text-muted fw-normal" style="font-size: 0.85rem;">el {result.lastStatusDateStr}</span>
+								</strong>
+								<span class="text-muted small">Hola {result.customerName}, registrado el {result.createdAtStr}</span>
+								<div class="mt-2 text-muted small bg-light p-2 rounded">
+									<strong>Producto:</strong> {result.productName || '—'} &nbsp;|&nbsp; 
+									<strong>Marca:</strong> {result.productBrand || '—'} &nbsp;|&nbsp; 
+									<strong>Serial:</strong> {result.productSerialNumber}
 								</div>
-								{result.isRejected ? (
-									<span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fs-6">Rechazada</span>
-								) : result.status === 'finalizada' ? (
-									<span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fs-6">Finalizada</span>
-								) : result.status === 'en proceso' ? (
-									<span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2 fs-6">En proceso</span>
-								) : result.status === 'en revision' ? (
-									<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">En revisión</span>
-								) : (
-									<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">Nueva solicitud</span>
-								)}
 							</div>
+							{result.isRejected ? (
+								<span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fs-6">Rechazada</span>
+							) : result.status === 'finalizada' ? (
+								<span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fs-6">Finalizada</span>
+							) : result.status === 'en proceso' ? (
+								<span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2 fs-6">En proceso</span>
+							) : result.status === 'en revision' ? (
+								<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">En revisión</span>
+							) : (
+								<span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fs-6">Nueva solicitud</span>
+							)}
+						</div>
 
 							<!-- Stepper tipo DHL -->
 							<div class="track-stepper mb-4">
@@ -184,24 +199,31 @@ if (result) {
 								<ul class="track-timeline mb-4">
 									{result.comments.map((c) => (
 										<li class={c.fromClient ? 'from-client' : ''}>
-											<div class="d-flex justify-content-between small mb-1">
+											<div class="d-flex justify-content-between small mb-1 flex-wrap gap-1">
 												<strong class="text-dark">{c.author}</strong>
+												{c.statusLabel && <span class={`badge ${statusBadgeClasses[c.status || ''] || 'bg-secondary-subtle text-secondary'} rounded-pill px-2 py-0`} style="font-size: 0.65rem;">{c.statusLabel}</span>}
 												<span class="text-muted" style="font-size: 0.72rem;">{c.dateStr}</span>
 											</div>
 											<p class="mb-1 text-body" style="font-size: 0.88rem; line-height: 1.45; white-space: pre-line;">{c.note}</p>
 											{c.attachments.length > 0 && (
 												<div class="d-flex flex-wrap gap-2 mt-2">
-													{c.attachments.map((url) => {
-														const ext = url.split('.').pop()?.toLowerCase() || '';
-														const isVid = ['mp4', 'webm', 'mov'].includes(ext);
-														return isVid ? (
-															<button type="button" class="btn p-0 rounded border overflow-hidden position-relative media-preview-btn" data-url={url} data-title="Video Adjunto" style="max-width: 240px; max-height: 180px;">
-																<video src={url} class="w-100 h-100 object-fit-cover" preload="metadata"></video>
+													{c.attachments.map((attUrl) => {
+														const attExt = (attUrl.split('.').pop() || '').toLowerCase();
+														const attIsVideo = ['mp4','mov','webm'].includes(attExt);
+														const attIsPdf = attExt === 'pdf';
+														return attIsVideo ? (
+															<button type="button" class="btn p-0 rounded border overflow-hidden position-relative media-preview-btn" data-url={attUrl} data-title="Video Adjunto" style="width: 100px; height: 100px;">
+																<video src={attUrl} class="w-100 h-100 object-fit-cover" preload="metadata"></video>
 																<div class="position-absolute top-50 start-50 translate-middle text-white fs-3"><i class="ri-play-circle-fill"></i></div>
 															</button>
+														) : attIsPdf ? (
+															<button type="button" class="btn p-0 rounded border overflow-hidden position-relative media-preview-btn d-flex flex-column align-items-center justify-content-center bg-danger-subtle text-danger" data-url={attUrl} data-title="PDF Adjunto" style="width: 100px; height: 100px;">
+																<i class="ri-file-pdf-2-line fs-3"></i>
+																<span style="font-size: 0.65rem;" class="fw-bold">PDF</span>
+															</button>
 														) : (
-															<button type="button" class="btn p-0 track-attach border rounded overflow-hidden d-flex align-items-center justify-content-center bg-light media-preview-btn" data-url={url} data-title="Foto Adjunta">
-																<img src={url} alt="Adjunto" style="max-width: 100%; max-height: 100%; object-fit: cover;" />
+															<button type="button" class="btn p-0 rounded border overflow-hidden position-relative media-preview-btn" data-url={attUrl} data-title="Foto Adjunta" style="width: 100px; height: 100px;">
+																<img src={attUrl} alt="Adjunto" style="width: 100%; height: 100%; object-fit: cover;" />
 															</button>
 														);
 													})}
@@ -305,16 +327,19 @@ if (result) {
 
 						let thumbHtml = '';
 						if (isVideo) {
-							thumbHtml = `<div class="bg-dark rounded overflow-hidden position-relative d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn" data-url="${url}" data-title="Video" style="width:64px; height:64px;">
 								<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
 								<i class="ri-play-circle-fill text-white position-absolute fs-5"></i>
-							</div>`;
+							</button>`;
 						} else if (isPdf) {
-							thumbHtml = `<div class="bg-danger-subtle text-danger rounded d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
-								<i class="ri-file-pdf-line fs-4"></i>
-							</div>`;
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn d-flex flex-column align-items-center justify-content-center bg-danger-subtle text-danger" data-url="${url}" data-title="Documento PDF" style="width:64px; height:64px;">
+								<i class="ri-file-pdf-2-line fs-4"></i>
+								<span style="font-size:0.55rem;" class="fw-bold">PDF</span>
+							</button>`;
 						} else {
-							thumbHtml = `<img src="${url}" alt="Preview" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`;
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${url}" data-title="Foto" style="width:64px; height:64px;">
+								<img src="${url}" alt="Preview" class="w-100 h-100 object-fit-cover" />
+							</button>`;
 						}
 
 						return `
@@ -402,40 +427,41 @@ if (result) {
 						sendBtn.innerHTML = '<i class="ri-send-plane-line me-1"></i> Enviar mensaje';
 					}
 				});
-				// Media Preview Lightbox handler
-				document.querySelectorAll('.media-preview-btn').forEach(btn => {
-					btn.addEventListener('click', (e) => {
-						e.preventDefault();
-						const url = btn.getAttribute('data-url');
-						const title = btn.getAttribute('data-title') || 'Previsualización';
-						if (!url) return;
+				// Media Preview Lightbox handler - using event delegation
+				document.addEventListener('click', (e) => {
+					const btn = (e.target as HTMLElement).closest('.media-preview-btn');
+					if (!btn) return;
+					e.preventDefault();
+					
+					const url = btn.getAttribute('data-url');
+					const title = btn.getAttribute('data-title') || 'Previsualización';
+					if (!url) return;
 
-						const modalEl = document.getElementById('mediaPreviewModal');
-						const container = document.getElementById('media-preview-container');
-						const titleEl = document.getElementById('media-preview-title');
-						const downloadLink = document.getElementById('media-preview-download') as HTMLAnchorElement | null;
+					const modalEl = document.getElementById('mediaPreviewModal');
+					const container = document.getElementById('media-preview-container');
+					const titleEl = document.getElementById('media-preview-title');
+					const downloadLink = document.getElementById('media-preview-download') as HTMLAnchorElement | null;
 
-						if (!modalEl || !container) return;
+					if (!modalEl || !container) return;
 
-						if (titleEl) titleEl.innerHTML = `<i class="ri-eye-line me-2 text-info"></i>${title}`;
-						if (downloadLink) downloadLink.href = url;
+					if (titleEl) titleEl.innerHTML = `<i class="ri-eye-line me-2 text-info"></i>${title}`;
+					if (downloadLink) downloadLink.href = url;
 
-						const ext = (url.split('.').pop() || '').toLowerCase();
-						const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
-						const isPdf = ext === 'pdf';
+					const ext = (url.split('.').pop() || '').toLowerCase();
+					const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+					const isPdf = ext === 'pdf';
 
-						if (isVideo) {
-							container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
-						} else if (isPdf) {
-							container.innerHTML = `<iframe src="${url}" style="width:100%; height:70vh; border:none;" class="rounded bg-white"></iframe>`;
-						} else {
-							container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;
-						}
+					if (isVideo) {
+						container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
+					} else if (isPdf) {
+						container.innerHTML = `<iframe src="${url}" style="width:100%; height:70vh; border:none;" class="rounded bg-white"></iframe>`;
+					} else {
+						container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;
+					}
 
-						// @ts-ignore
-						const modal = window.bootstrap?.Modal?.getOrCreateInstance(modalEl);
-						modal?.show();
-					});
+					// @ts-ignore
+					const modal = window.bootstrap?.Modal?.getOrCreateInstance(modalEl);
+					modal?.show();
 				});
 			});
 		</script>

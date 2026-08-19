@@ -2036,7 +2036,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						}).format(new Date(h.updated_at));
 						const fromClient = !!h.from_client;
 						const author = fromClient ? (h.author_name || 'Cliente') : (h.userName || h.author_name || 'Equipo');
-						const statusLabel = h.status === 'recibida' ? 'Nuevas solicitudes' : h.status === 'en proceso' ? 'En proceso' : 'Finalizadas';
+						const statusLabels: Record<string, string> = { 'recibida': 'Nuevas solicitudes', 'en revision': 'En revisión', 'en proceso': 'En proceso', 'finalizada': 'Finalizadas', 'rechazada': 'Rechazadas' };
+						const statusLabel = statusLabels[h.status] || 'En proceso';
 
 						const atts = Array.isArray(h.attachments) ? h.attachments : [];
 						const attHtml = atts.length === 0 ? '' : `
@@ -2044,17 +2045,30 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								${atts.map((url: string) => {
 									const ext = (url.split('.').pop() || '').toLowerCase();
 									const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
-									return isVideo
-										? `<button type="button" class="btn p-0 border rounded d-flex align-items-center justify-content-center bg-dark text-white media-preview-btn" data-url="${url}" data-title="Video Adjunto" style="width:48px;height:48px;"><i class="ri-play-circle-line fs-4"></i></button>`
-										: `<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${url}" data-title="Evidencia Adjunta" style="width:48px;height:48px;"><img src="${url}" style="width:100%;height:100%;object-fit:cover;" /></button>`;
+									const isPdf = ext === 'pdf';
+									if (isVideo) {
+										return `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn" data-url="${url}" data-title="Video Adjunto" style="width:80px;height:80px;">
+											<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
+											<div class="position-absolute top-50 start-50 translate-middle text-white fs-4"><i class="ri-play-circle-fill"></i></div>
+										</button>`;
+									} else if (isPdf) {
+										return `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn d-flex flex-column align-items-center justify-content-center bg-danger-subtle text-danger" data-url="${url}" data-title="Documento PDF" style="width:80px;height:80px;">
+											<i class="ri-file-pdf-2-line fs-3"></i>
+											<span style="font-size:0.6rem;" class="fw-bold">PDF</span>
+										</button>`;
+									} else {
+										return `<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${url}" data-title="Foto Adjunta" style="width:80px;height:80px;"><img src="${url}" style="width:100%;height:100%;object-fit:cover;" /></button>`;
+									}
 								}).join('')}
 							</div>`;
 
+						const statusTones: Record<string, string> = { 'recibida': 'primary', 'en revision': 'info', 'en proceso': 'warning', 'finalizada': 'success', 'rechazada': 'danger' };
+						const statusTone = statusTones[h.status] || 'secondary';
 						const side = fromClient ? 'right' : 'left';
 						return `
 							<div class="cx-msg cx-msg-${side}">
 								<div class="cx-bubble">
-									<div class="cx-bubble-head"><strong>${author}</strong> · ${statusLabel}</div>
+									<div class="cx-bubble-head"><strong>${author}</strong> · <span class="badge bg-${statusTone}-subtle text-${statusTone} rounded-pill px-2 py-0" style="font-size:0.68rem;">${statusLabel}</span></div>
 									<p class="cx-bubble-text">${h.note || 'Cambio de estado.'}</p>
 									${attHtml}
 									<span class="cx-bubble-time">${dateStr}</span>

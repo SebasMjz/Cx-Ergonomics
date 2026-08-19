@@ -300,9 +300,9 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 									<label class="form-label text-muted small fw-bold">Evidencias de Falla (1 a 3 archivos)</label>
 									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary" id="evidence-upload-zone" style="cursor: pointer; min-height: 120px;">
 										<i class="ri-folder-video-line fs-1 text-muted mb-2 d-block"></i>
-										<span class="small d-block text-secondary fw-semibold upload-label">Subir fotos y/o videos</span>
-										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP, MP4, MOV, WEBM</span>
-										<input type="file" id="evidence-file" class="d-none" accept="image/*,video/*" multiple />
+										<span class="small d-block text-secondary fw-semibold upload-label">Subir fotos, videos o PDFs</span>
+										<span class="small d-block text-muted" style="font-size: 0.72rem;">Formatos: JPG, PNG, WEBP, MP4, MOV, WEBM, PDF</span>
+										<input type="file" id="evidence-file" class="d-none" accept="image/*,video/*,.pdf" multiple />
 									</div>
 									<div class="progress mt-2 d-none" id="evidence-progress-container" style="height: 6px;">
 										<div class="progress-bar bg-dark" role="progressbar" id="evidence-progress-bar" style="width: 0%;"></div>
@@ -790,23 +790,28 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 						if (successLabel) successLabel.classList.remove('d-none');
 
 						const isPdf = file.name.toLowerCase().endsWith('.pdf');
-						if (previewContainer) {
-							previewContainer.innerHTML = `
-								<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
-									<div class="d-flex align-items-center gap-2.5 overflow-hidden">
-										${isPdf 
-											? `<div class="bg-danger-subtle text-danger rounded d-flex align-items-center justify-content-center" style="width:48px; height:48px;"><i class="ri-file-pdf-line fs-4"></i></div>`
-											: `<img src="${receiptUrl}" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`}
-										<div class="d-flex flex-column overflow-hidden">
-											<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
-											<span class="text-muted" style="font-size: 0.7rem;">${isPdf ? 'Documento PDF' : 'Factura de compra'}</span>
-										</div>
+					if (previewContainer) {
+						previewContainer.innerHTML = `
+							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+								<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+									${isPdf 
+										? `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn d-flex flex-column align-items-center justify-content-center bg-danger-subtle text-danger" data-url="${receiptUrl}" data-title="Factura de Compra (PDF)" style="width:56px; height:56px;">
+											<i class="ri-file-pdf-2-line fs-4"></i>
+											<span style="font-size:0.55rem;" class="fw-bold">PDF</span>
+										</button>`
+										: `<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${receiptUrl}" data-title="Factura de Compra" style="width:56px; height:56px;">
+											<img src="${receiptUrl}" class="w-100 h-100 object-fit-cover" />
+										</button>`}
+									<div class="d-flex flex-column overflow-hidden">
+										<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
+										<span class="text-muted" style="font-size: 0.7rem;">${isPdf ? 'Documento PDF' : 'Factura de compra'}</span>
 									</div>
-									<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-receipt-btn" style="font-size: 0.75rem;">
-										<i class="ri-delete-bin-line me-1"></i>Quitar
-									</button>
 								</div>
-							`;
+								<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-receipt-btn" style="font-size: 0.75rem;">
+									<i class="ri-delete-bin-line me-1"></i>Quitar
+								</button>
+							</div>
+						`;
 							document.getElementById('remove-receipt-btn')?.addEventListener('click', (e) => {
 								e.stopPropagation();
 								receiptUrl = '';
@@ -856,21 +861,23 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 						if (label) label.textContent = 'Cambiar Foto S/N';
 						if (successLabel) successLabel.classList.remove('d-none');
 
-						if (previewContainer) {
-							previewContainer.innerHTML = `
-								<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
-									<div class="d-flex align-items-center gap-2.5 overflow-hidden">
-										<img src="${snUrl}" class="rounded object-fit-cover border" style="width:48px; height:48px;" />
-										<div class="d-flex flex-column overflow-hidden">
-											<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
-											<span class="text-muted" style="font-size: 0.7rem;">Foto S/N Producto y Caja</span>
-										</div>
-									</div>
-									<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-sn-btn" style="font-size: 0.75rem;">
-										<i class="ri-delete-bin-line me-1"></i>Quitar
+					if (previewContainer) {
+						previewContainer.innerHTML = `
+							<div class="d-flex align-items-center justify-content-between p-2 border rounded bg-light shadow-sm">
+								<div class="d-flex align-items-center gap-2.5 overflow-hidden">
+									<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${snUrl}" data-title="Foto S/N Producto y Caja" style="width:56px; height:56px;">
+										<img src="${snUrl}" class="w-100 h-100 object-fit-cover" />
 									</button>
+									<div class="d-flex flex-column overflow-hidden">
+										<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${file.name}</span>
+										<span class="text-muted" style="font-size: 0.7rem;">Foto S/N Producto y Caja</span>
+									</div>
 								</div>
-							`;
+								<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" id="remove-sn-btn" style="font-size: 0.75rem;">
+									<i class="ri-delete-bin-line me-1"></i>Quitar
+								</button>
+							</div>
+						`;
 							document.getElementById('remove-sn-btn')?.addEventListener('click', (e) => {
 								e.stopPropagation();
 								snUrl = '';
@@ -901,16 +908,24 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 					list.innerHTML = evidenceUrls.map((url, idx) => {
 						const ext = (url.split('.').pop() || '').toLowerCase();
 						const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+						const isPdf = ext === 'pdf';
 						const filename = url.split('/').pop() || 'Evidencia';
 
 						let thumbHtml = '';
 						if (isVideo) {
-							thumbHtml = `<div class="bg-dark rounded overflow-hidden position-relative d-flex align-items-center justify-content-center" style="width:48px; height:48px;">
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn" data-url="${url}" data-title="Video Evidencia ${idx + 1}" style="width:56px; height:56px;">
 								<video src="${url}" class="w-100 h-100 object-fit-cover" preload="metadata"></video>
-								<i class="ri-play-circle-fill text-white position-absolute fs-5"></i>
-							</div>`;
+								<div class="position-absolute top-50 start-50 translate-middle text-white fs-5"><i class="ri-play-circle-fill"></i></div>
+							</button>`;
+						} else if (isPdf) {
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden position-relative media-preview-btn d-flex flex-column align-items-center justify-content-center bg-danger-subtle text-danger" data-url="${url}" data-title="PDF Evidencia ${idx + 1}" style="width:56px; height:56px;">
+								<i class="ri-file-pdf-2-line fs-4"></i>
+								<span style="font-size:0.55rem;" class="fw-bold">PDF</span>
+							</button>`;
 						} else {
-							thumbHtml = `<img src="${url}" alt="Evidencia" class="rounded object-fit-cover border" style="width:48px; height:48px;" />`;
+							thumbHtml = `<button type="button" class="btn p-0 border rounded overflow-hidden media-preview-btn" data-url="${url}" data-title="Foto Evidencia ${idx + 1}" style="width:56px; height:56px;">
+								<img src="${url}" alt="Evidencia" class="w-100 h-100 object-fit-cover" />
+							</button>`;
 						}
 
 						return `
@@ -919,7 +934,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 									${thumbHtml}
 									<div class="d-flex flex-column overflow-hidden">
 										<span class="small fw-bold text-dark text-truncate" style="max-width: 180px;">${filename}</span>
-										<span class="text-muted" style="font-size: 0.7rem;">${isVideo ? 'Video' : 'Foto'} ${idx + 1}</span>
+										<span class="text-muted" style="font-size: 0.7rem;">${isVideo ? 'Video' : isPdf ? 'PDF' : 'Foto'} ${idx + 1}</span>
 									</div>
 								</div>
 								<button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1 delete-evidence-btn" data-index="${idx}" style="font-size: 0.75rem;">
@@ -980,7 +995,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 						}
 					}
 
-					if (label) label.textContent = 'Subir fotos y/o videos';
+					if (label) label.textContent = 'Subir fotos, videos o PDFs';
 					progressContainer?.classList.add('d-none');
 					evidenceInput.value = ''; // Reset input selection
 				});
@@ -1116,6 +1131,80 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 					}
 				});
 			});
+
+			// Media Preview Lightbox handler
+			function openMediaPreviewModal(url: string, title: string = 'Previsualización') {
+				const modalEl = document.getElementById('mediaPreviewModal');
+				const container = document.getElementById('media-preview-container');
+				const titleEl = document.getElementById('media-preview-title');
+				const downloadLink = document.getElementById('media-preview-download') as HTMLAnchorElement | null;
+
+				if (!modalEl || !container) return;
+
+				if (titleEl) titleEl.innerHTML = `<i class="ri-eye-line me-2 text-info"></i>${title}`;
+				if (downloadLink) downloadLink.href = url;
+
+				const ext = (url.split('.').pop() || '').toLowerCase();
+				const isVideo = ['mp4', 'mov', 'webm'].includes(ext);
+				const isPdf = ext === 'pdf';
+
+				if (isVideo) {
+					container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
+				} else if (isPdf) {
+					container.innerHTML = `
+						<div class="w-100 d-flex flex-column align-items-center justify-content-center p-2 rounded bg-white text-dark" style="min-height: 65vh;">
+							<object data="${url}" type="application/pdf" class="w-100 rounded" style="height: 65vh; min-height: 420px;">
+								<embed src="${url}" type="application/pdf" class="w-100" style="height: 65vh; min-height: 420px;" />
+								<div class="text-center p-4">
+									<i class="ri-file-pdf-2-line fs-1 text-danger mb-2 d-block"></i>
+									<h5 class="fw-bold text-dark mb-2">Documento PDF</h5>
+									<p class="text-muted small mb-3">Si tu navegador no muestra la previsualización directa, puedes abrir el PDF completo a continuación.</p>
+									<a href="${url}" target="_blank" rel="noopener" class="btn btn-danger rounded-pill px-4 fw-bold">
+										<i class="ri-external-link-line me-1"></i> Abrir Documento PDF
+									</a>
+								</div>
+							</object>
+						</div>`;
+				} else {
+					container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;
+				}
+
+				// @ts-ignore
+				const modal = window.bootstrap?.Modal?.getOrCreateInstance(modalEl);
+				modal?.show();
+			}
+
+			// Add click handlers to preview thumbnails
+			document.addEventListener('click', (e) => {
+				const target = (e.target as HTMLElement).closest('.media-preview-btn');
+				if (!target) return;
+				e.preventDefault();
+				const url = target.getAttribute('data-url');
+				const title = target.getAttribute('data-title') || 'Previsualización';
+				if (url) openMediaPreviewModal(url, title);
+			});
 		</script>
+
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+		<!-- Media Preview Lightbox Modal -->
+		<div class="modal fade" id="mediaPreviewModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+			<div class="modal-dialog modal-dialog-centered modal-lg">
+				<div class="modal-content bg-dark border-0 shadow-lg text-white rounded-4 overflow-hidden">
+					<div class="modal-header border-bottom border-secondary py-2.5 px-3">
+						<h6 class="modal-title fw-bold mb-0 text-white" id="media-preview-title"><i class="ri-eye-line me-2 text-info"></i>Previsualización</h6>
+						<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+					</div>
+					<div class="modal-body p-3 text-center d-flex align-items-center justify-content-center bg-black bg-opacity-50" style="min-height: 380px; max-height: 75vh; overflow: auto;" id="media-preview-container">
+					</div>
+					<div class="modal-footer border-top border-secondary py-2 px-3 justify-content-between">
+						<a href="#" target="_blank" rel="noopener" id="media-preview-download" class="btn btn-sm btn-outline-light rounded-pill">
+							<i class="ri-external-link-line me-1"></i>Abrir archivo completo
+						</a>
+						<button type="button" class="btn btn-sm btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+					</div>
+				</div>
+			</div>
+		</div>
 	</body>
 </html>

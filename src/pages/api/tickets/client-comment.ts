@@ -55,7 +55,9 @@ export const POST: APIRoute = async ({ request }) => {
 			updateData.$set.evidence_video = combinedList.join(',');
 		}
 
-		if (ticket.status === 'finalizada' || ticket.status === 'rechazada') {
+		const isRejected = ticket.status === 'rechazada' || (ticket.status === 'finalizada' && ticket.resolution_type === 'rechazo');
+
+		if (isRejected) {
 			if (!updateData.$set) updateData.$set = {};
 			updateData.$set.status = 'recibida';
 			updateData.$set.step_resolved = false;

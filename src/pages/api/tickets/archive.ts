@@ -27,6 +27,13 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
+		if (archived === false) {
+			return new Response(JSON.stringify({ error: 'Los tickets archivados no se pueden regresar al tablero activo.' }), {
+				status: 400,
+				headers: { 'content-type': 'application/json; charset=utf-8' },
+			});
+		}
+
 		// 3. Connect to Database
 		await connectMongoose();
 

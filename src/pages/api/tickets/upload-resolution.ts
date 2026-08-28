@@ -20,6 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
 		let ticketNumber = '';
 		let transactionNumber = '';
 		let note = '';
+		let shouldArchive = false;
 
 		const contentType = request.headers.get('content-type') || '';
 		if (contentType.includes('application/json')) {
@@ -27,11 +28,13 @@ export const POST: APIRoute = async ({ request }) => {
 			ticketNumber = String(body.ticketNumber || '').trim();
 			transactionNumber = String(body.transactionNumber || '').trim();
 			note = String(body.note || '').trim();
+			shouldArchive = !!body.archive;
 		} else {
 			const formData = await request.formData();
 			ticketNumber = (formData.get('ticketNumber') as string || '').trim();
 			transactionNumber = (formData.get('transactionNumber') as string || '').trim();
 			note = (formData.get('note') as string || '').trim();
+			shouldArchive = formData.get('archive') === 'true' || formData.get('archive') === '1';
 		}
 
 		if (!ticketNumber) {
@@ -61,7 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// 4. Build Internal History Entry & Resolution Update
 		const now = new Date();
-		let historyNote = note || 'Se registró resolución y se archivó el ticket.';
+		let historyNote = note || (shouldArchive ? 'Se registró resolución y se archivó el ticket.' : 'Se registró resolución en espera del proveedor.');
 		if (transactionNumber) {
 			historyNote += ` — Nº Transacción: ${transactionNumber}`;
 		}
@@ -78,9 +81,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const updateFields: Record<string, any> = {
 			status: 'finalizada',
-			archived: true,
-			archivedAt: now,
+			archived: shouldArchive,
 		};
+
+		if (shouldArchive) {
+			updateFields.archivedAt = now;
+		}
 
 		if (transactionNumber) {
 			updateFields.supplier_transaction_number = transactionNumber;

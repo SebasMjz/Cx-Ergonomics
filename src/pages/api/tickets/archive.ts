@@ -27,13 +27,6 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		if (archived === false) {
-			return new Response(JSON.stringify({ error: 'Los tickets archivados no se pueden regresar al tablero activo.' }), {
-				status: 400,
-				headers: { 'content-type': 'application/json; charset=utf-8' },
-			});
-		}
-
 		// 3. Connect to Database
 		await connectMongoose();
 
@@ -53,15 +46,25 @@ export const POST: APIRoute = async ({ request }) => {
 			updated_at: new Date(),
 		};
 
+		const setFields: Record<string, any> = {
+			archived: !!archived,
+		};
+		if (archived) {
+			setFields.archivedAt = new Date();
+		}
+
+		const updateQuery: Record<string, any> = {
+			$set: setFields,
+			$push: { history: historyItem },
+		};
+
+		if (!archived) {
+			updateQuery.$unset = { archivedAt: 1 };
+		}
+
 		const updatedTicket = await TicketModel.findOneAndUpdate(
 			{ ticket_number: ticketNumber },
-			{
-				$set: {
-					archived: !!archived,
-					archivedAt: archived ? new Date() : undefined,
-				},
-				$push: { history: historyItem },
-			},
+			updateQuery,
 			{ new: true }
 		);
 

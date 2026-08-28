@@ -344,6 +344,23 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 							<strong class="h4 text-dark d-block fw-bold" id="generated-ticket-number">RMA-2026-XXXX</strong>
 						</div>
 
+						<!-- Aviso Importante Entrega Física -->
+						<div class="alert alert-warning border border-warning-subtle text-start p-3.5 p-md-4 rounded-3 my-4 shadow-sm" style="background-color: #fffcf0;">
+							<h5 class="fw-bold text-dark mb-2 d-flex align-items-center gap-2" style="font-size: 1rem;">
+								<span>📦</span> Importante
+							</h5>
+							<p class="mb-2 text-dark small" style="line-height: 1.5;">
+								Una vez registrado el reporte de RMA, el producto deberá ser entregado físicamente en la tienda donde fue adquirido, dentro de las próximas 24 horas.
+							</p>
+							<p class="mb-3 text-muted small" style="line-height: 1.5;">
+								Esto nos permitirá revisar y validar el producto para continuar con el proceso de garantía.
+							</p>
+							<div class="p-2.5 rounded-2 bg-warning bg-opacity-25 text-warning-emphasis fw-semibold small d-flex align-items-start gap-2">
+								<span class="fs-6">⚠️</span>
+								<span style="font-size: 0.82rem; line-height: 1.4;">El reporte de RMA no podrá ser procesado hasta que el producto sea entregado físicamente.</span>
+							</div>
+						</div>
+
 						<p class="text-muted small">Guarda este código para cualquier consulta sobre tu garantía. Te contactaremos pronto.</p>
 						<a href="/rma/new" class="btn btn-outline-dark rounded-pill px-4 mt-4 fw-semibold">Registrar otra solicitud</a>
 					</div>

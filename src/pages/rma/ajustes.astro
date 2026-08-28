@@ -118,6 +118,15 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 						</div>
 					</div>
 					<div class="mb-3">
+						<label class="form-label small fw-bold text-muted">Mensaje — columna "En revisión"</label>
+						<textarea class="form-control" id="set-rma-wa-revision" rows="2">{s.rma_wa_msg_revision || ''}</textarea>
+						<div class="d-flex flex-wrap gap-1 mt-2">
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-revision" data-token="{cliente}"><i class="ri-user-line me-1"></i>Nombre del cliente</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-revision" data-token="{ticket}"><i class="ri-hashtag me-1"></i>N.º de ticket</button>
+							<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill var-btn" data-target="set-rma-wa-revision" data-token="{url}"><i class="ri-link me-1"></i>Enlace de seguimiento</button>
+						</div>
+					</div>
+					<div class="mb-3">
 						<label class="form-label small fw-bold text-muted">Mensaje — columna "En proceso"</label>
 						<textarea class="form-control" id="set-rma-wa-proceso" rows="2">{s.rma_wa_msg_proceso || ''}</textarea>
 						<div class="d-flex flex-wrap gap-1 mt-2">
@@ -283,6 +292,7 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 					rma_tracking_url: $('set-rma-track-url').value,
 					rma_warranty_policy: $('set-rma-policy').value,
 					rma_wa_msg_recibida: $('set-rma-wa-recibida').value,
+					rma_wa_msg_revision: $('set-rma-wa-revision').value,
 					rma_wa_msg_proceso: $('set-rma-wa-proceso').value,
 					rma_wa_msg_finalizada: $('set-rma-wa-finalizada').value,
 					rma_wa_msg_rechazo: $('set-rma-wa-rechazo').value,

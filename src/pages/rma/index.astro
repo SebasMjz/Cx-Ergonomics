@@ -99,8 +99,8 @@ function trackingUrlFor(ticketNumber: string) {
 }
 const waTemplates: Record<TicketStatus, string> = {
 	recibida: settings.rma_wa_msg_recibida || '',
+	'en revision': settings.rma_wa_msg_revision || settings.rma_wa_msg_proceso || '',
 	'en proceso': settings.rma_wa_msg_proceso || '',
-	'en revision': settings.rma_wa_msg_proceso || '', // default to in process message
 	finalizada: settings.rma_wa_msg_finalizada || '',
 	rechazada: settings.rma_wa_msg_rechazo || '',
 };
@@ -918,7 +918,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						<div class="alert alert-info border-0 shadow-sm rounded-3 p-3 mb-3 d-flex align-items-start gap-2">
 							<i class="ri-information-line fs-5 flex-shrink-0 text-info"></i>
 							<div class="small text-dark" style="font-size: 0.82rem; line-height: 1.45;">
-								Ingresa el número de transacción y/o el comentario de resolución para registrar el cierre y **archivar el ticket**.
+								Ingresa el número de transacción y/o el comentario de resolución del proveedor. El ticket permanecerá en el listado <strong>En Espera del Proveedor</strong> salvo que selecciones archivar.
 							</div>
 						</div>
 
@@ -934,10 +934,13 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 						<div class="alert alert-danger d-none py-2 px-3 small rounded-3 mb-0" id="resolution-error"></div>
 					</div>
-					<div class="modal-footer border-top bg-light p-3">
+					<div class="modal-footer border-top bg-light p-3 flex-wrap gap-2 justify-content-end">
 						<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
-						<button type="button" class="btn btn-sm btn-success rounded-pill px-4 fw-semibold" id="submit-resolution-btn">
-							<i class="ri-check-double-line me-1"></i> Guardar Resolución y Archivar
+						<button type="button" class="btn btn-sm btn-warning text-dark rounded-pill px-3 fw-semibold" id="submit-resolution-btn">
+							<i class="ri-save-line me-1"></i> Guardar (En Espera del Proveedor)
+						</button>
+						<button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-semibold" id="submit-resolution-archive-btn">
+							<i class="ri-archive-line me-1"></i> Guardar y Archivar Ticket
 						</button>
 					</div>
 				</div>
@@ -3007,6 +3010,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				const resNoteInput = document.getElementById('resolution-note') as HTMLTextAreaElement;
 				const resErrorEl = document.getElementById('resolution-error');
 				const resSubmitBtn = document.getElementById('submit-resolution-btn') as HTMLButtonElement;
+				const resSubmitArchiveBtn = document.getElementById('submit-resolution-archive-btn') as HTMLButtonElement;
 
 				function resetResolutionModal() {
 					if (resTxInput) resTxInput.value = '';
@@ -3014,7 +3018,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					if (resErrorEl) { resErrorEl.textContent = ''; resErrorEl.classList.add('d-none'); }
 					if (resSubmitBtn) {
 						resSubmitBtn.disabled = false;
-						resSubmitBtn.innerHTML = '<i class="ri-check-double-line me-1"></i> Guardar Resolución y Archivar';
+						resSubmitBtn.innerHTML = '<i class="ri-save-line me-1"></i> Guardar (En Espera del Proveedor)';
+					}
+					if (resSubmitArchiveBtn) {
+						resSubmitArchiveBtn.disabled = false;
+						resSubmitArchiveBtn.innerHTML = '<i class="ri-archive-line me-1"></i> Guardar y Archivar Ticket';
 					}
 				}
 
@@ -3032,8 +3040,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					});
 				});
 
-				resSubmitBtn?.addEventListener('click', async () => {
-					if (!resTicketInput || !resSubmitBtn) return;
+				async function processResolutionSave(shouldArchive: boolean, btnTriggered: HTMLButtonElement) {
+					if (!resTicketInput || !btnTriggered) return;
 					const ticketNumber = resTicketInput.value;
 					const transactionNumber = resTxInput?.value.trim() || '';
 					const note = resNoteInput?.value.trim() || '';
@@ -3047,8 +3055,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					}
 
 					try {
-						resSubmitBtn.disabled = true;
-						resSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando y Archivando...';
+						btnTriggered.disabled = true;
+						btnTriggered.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${shouldArchive ? 'Guardando y Archivando...' : 'Guardando...'}`;
 						if (resErrorEl) resErrorEl.classList.add('d-none');
 
 						const res = await fetch('/api/tickets/upload-resolution', {
@@ -3058,13 +3066,17 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								ticketNumber,
 								transactionNumber,
 								note,
+								archive: shouldArchive,
 							}),
 						});
 
 						const data = await res.json();
 						if (!res.ok) throw new Error(data.error || 'Error al guardar resolución');
 
-						showToast(`Resolución guardada y ticket #${ticketNumber} archivado correctamente.`, 'success');
+						const msg = shouldArchive
+							? `Resolución guardada y ticket #${ticketNumber} archivado correctamente.`
+							: `Resolución guardada. El ticket #${ticketNumber} permanece en Espera del Proveedor.`;
+						showToast(msg, 'success');
 						// @ts-ignore
 						const modal = window.bootstrap?.Modal?.getInstance(resModalEl);
 						modal?.hide();
@@ -3074,10 +3086,12 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							resErrorEl.textContent = err.message || 'Error al procesar la resolución.';
 							resErrorEl.classList.remove('d-none');
 						}
-						resSubmitBtn.disabled = false;
-						resSubmitBtn.innerHTML = '<i class="ri-check-double-line me-1"></i> Guardar Resolución y Archivar';
+						resetResolutionModal();
 					}
-				});
+				}
+
+				resSubmitBtn?.addEventListener('click', () => processResolutionSave(false, resSubmitBtn));
+				resSubmitArchiveBtn?.addEventListener('click', () => processResolutionSave(true, resSubmitArchiveBtn));
 
 				// Table row click handlers to open details modal
 				document.querySelectorAll('.archived-ticket-row, .supplier-waiting-ticket-row, .archived-preview-item').forEach(row => {

@@ -29,6 +29,7 @@ export interface ISiteSettings extends Document {
 	// Plantillas de WhatsApp del tablero RMA, una por columna/estado.
 	// Variables disponibles: {ticket}, {cliente}, {url}
 	rma_wa_msg_recibida?: string;
+	rma_wa_msg_revision?: string;
 	rma_wa_msg_proceso?: string;
 	rma_wa_msg_finalizada?: string;
 	// Mensaje de rechazo. Variables: {ticket}, {cliente}, {url}, {motivo}
@@ -96,10 +97,16 @@ Los tiempos de respuesta pueden variar según la disponibilidad de repuestos y l
 				'Hola {cliente}, recibimos tu solicitud de garantía {ticket}. Puedes seguir el estado de tu caso aquí: {url}',
 			trim: true,
 		},
+		rma_wa_msg_revision: {
+			type: String,
+			default:
+				'Hola {cliente}, tu solicitud {ticket} se encuentra en revisión técnica. Seguimiento: {url}',
+			trim: true,
+		},
 		rma_wa_msg_proceso: {
 			type: String,
 			default:
-				'Hola {cliente}, tu RMA {ticket} fue aceptado. Ya puedes dejar tu producto en la sucursal. Seguimiento: {url}',
+				'Hola {cliente}, tu RMA {ticket} fue aceptado y se encuentra en proceso de solución. Seguimiento: {url}',
 			trim: true,
 		},
 		rma_wa_msg_finalizada: {

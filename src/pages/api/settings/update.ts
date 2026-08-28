@@ -30,6 +30,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (body.rma_tracking_url !== undefined) settings.rma_tracking_url = String(body.rma_tracking_url).trim();
 		if (body.rma_warranty_policy !== undefined) settings.rma_warranty_policy = String(body.rma_warranty_policy);
 		if (body.rma_wa_msg_recibida !== undefined) settings.rma_wa_msg_recibida = String(body.rma_wa_msg_recibida);
+		if (body.rma_wa_msg_revision !== undefined) settings.rma_wa_msg_revision = String(body.rma_wa_msg_revision);
 		if (body.rma_wa_msg_proceso !== undefined) settings.rma_wa_msg_proceso = String(body.rma_wa_msg_proceso);
 		if (body.rma_wa_msg_finalizada !== undefined) settings.rma_wa_msg_finalizada = String(body.rma_wa_msg_finalizada);
 		if (body.rma_wa_msg_rechazo !== undefined) settings.rma_wa_msg_rechazo = String(body.rma_wa_msg_rechazo);

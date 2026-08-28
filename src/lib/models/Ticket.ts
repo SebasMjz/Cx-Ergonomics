@@ -57,6 +57,7 @@ export interface ITicket extends Document {
 	step_resolved?: boolean;
 	history: ITicketHistoryItem[];
 	archived: boolean;
+	archivedAt?: Date;
 	order?: number;
 	createdAt: Date;
 	updatedAt: Date;
@@ -123,6 +124,7 @@ const TicketSchema = new Schema<ITicket>(
 		step_resolved: { type: Boolean, default: false },
 		history: { type: [TicketHistorySchema], default: [] },
 		archived: { type: Boolean, default: false },
+		archivedAt: { type: Date },
 		order: { type: Number, default: 0 },
 	},
 	{

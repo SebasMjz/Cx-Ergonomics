@@ -31,6 +31,13 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
+		if (ticket.archived) {
+			return new Response(
+				JSON.stringify({ error: 'Un ticket archivado no puede sufrir ningún cambio de ninguna forma.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		const currentEv = (ticket.evidence_video || '').split(',').filter(Boolean);
 		currentEv.push(evidenceUrl);
 		ticket.evidence_video = currentEv.join(',');

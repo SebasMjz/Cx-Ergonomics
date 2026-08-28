@@ -30,6 +30,21 @@ export const POST: APIRoute = async ({ request }) => {
 		// 3. Connect to Database
 		await connectMongoose();
 
+		const existingTicket = await TicketModel.findOne({ ticket_number: ticketNumber });
+		if (!existingTicket) {
+			return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
+				status: 404,
+				headers: { 'content-type': 'application/json; charset=utf-8' },
+			});
+		}
+
+		if (existingTicket.archived) {
+			return new Response(
+				JSON.stringify({ error: 'Un ticket archivado no puede sufrir ningún cambio de ninguna forma.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		// 4. Update Ticket Checkboxes
 		const updateData: Record<string, boolean> = {};
 		if (step_left_at_branch !== undefined) updateData.step_left_at_branch = !!step_left_at_branch;

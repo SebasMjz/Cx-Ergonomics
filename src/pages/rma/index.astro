@@ -46,6 +46,8 @@ type DashboardTicket = {
 	resolution_main_comment?: string;
 	client_solution?: string;
 	supplier_solution?: string;
+	client_transaction_number?: string;
+	supplier_transaction_number?: string;
 	history: Array<{
 		status: TicketStatus;
 		note?: string;
@@ -56,14 +58,21 @@ type DashboardTicket = {
 		attachments?: string[];
 	}>;
 	archived?: boolean;
+	archivedAt?: Date;
 	updatedAt: Date;
 	createdAt: Date;
 };
 
-// Fetch only active tickets for the board (where archived is not true)
-const activeTickets = (await TicketModel.find({ archived: { $ne: true } })
+// Fetch active (non-archived) tickets
+const nonArchivedTickets = (await TicketModel.find({ archived: { $ne: true } })
 	.sort({ order: 1, updatedAt: -1 })
 	.lean()) as DashboardTicket[];
+
+// Tickets en espera del proveedor (finalizados pero no archivados aún)
+const supplierWaitingTickets = nonArchivedTickets.filter((t) => t.status === 'finalizada');
+
+// Tickets activos para el tablero Kanban
+const activeTickets = nonArchivedTickets;
 
 // Fetch archived tickets separately
 const archivedTickets = (await TicketModel.find({ archived: true })
@@ -210,6 +219,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 	...t,
 	createdAtStr: formatDate(new Date(t.createdAt)),
 	updatedAtStr: formatDate(new Date(t.updatedAt)),
+	archivedAtStr: t.archivedAt ? formatDate(new Date(t.archivedAt)) : (t.archived ? formatDate(new Date(t.updatedAt)) : ''),
 	history: t.history.map(h => ({
 		...h,
 		userName: h.updated_by_user_id ? (userMap[h.updated_by_user_id] || 'Cliente / Sistema') : 'Cliente / Sistema'
@@ -539,49 +549,142 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							</div>
 						</div>
 
-						<!-- Archived Tickets Section (Collapse format list - now with pagination and advanced search) -->
-						<div class="text-center my-4">
+						<!-- Section List Toggle Buttons -->
+						<div class="d-flex justify-content-center gap-3 flex-wrap my-4">
+							<button class="btn btn-outline-warning text-dark px-4 py-2.5 rounded-pill fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#supplierWaitingTicketsSection" aria-expanded="false" aria-controls="supplierWaitingTicketsSection" id="toggle-supplier-waiting-btn">
+								<i class="ri-time-line me-2 text-warning"></i> Ver Listado de Tickets en Espera del Proveedor ({supplierWaitingTickets.length})
+							</button>
 							<button class="btn btn-outline-dark px-4 py-2.5 rounded-pill fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#archivedTicketsSection" aria-expanded="false" aria-controls="archivedTicketsSection" id="toggle-archived-btn">
 								<i class="ri-archive-line me-2"></i> Ver Listado de Tickets Archivados ({archivedTickets.length})
 							</button>
 						</div>
 
-						<div class="collapse" id="archivedTicketsSection">
-							<div class="card border border-light-subtle shadow-sm mb-5">
+						<!-- Supplier Waiting Tickets Section -->
+						<div class="collapse mb-4" id="supplierWaitingTicketsSection">
+							<div class="card border border-warning-subtle shadow-sm">
 								<div class="card-header bg-transparent py-4 border-bottom-0">
 									<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
 										<div>
-											<h3 class="h5 mb-1 fw-bold text-dark">Listado Histórico (Archivados)</h3>
-											<p class="text-muted small mb-0">Búsqueda rápida y detallada de tickets antiguos o resueltos.</p>
+											<h3 class="h5 mb-1 fw-bold text-dark"><i class="ri-time-line text-warning me-2"></i>Tickets en Espera del Proveedor</h3>
+											<p class="text-muted small mb-0">Casos finalizados en proceso de resolución externa. Puedes consultar y editar estos tickets.</p>
 										</div>
-										<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" id="export-archived-btn">
+										<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" id="export-supplier-waiting-btn">
 											<i class="ri-file-excel-line me-1"></i> Exportar Excel
 										</button>
 									</div>
 									
 									<!-- Filtros de Búsqueda -->
 									<div class="row g-2 align-items-end mt-2">
-										<div class="col-12 col-md-3">
-											<label class="form-label small fw-bold text-muted mb-1">Buscar Cliente o Código</label>
+										<div class="col-12 col-md-6">
+											<label class="form-label small fw-bold text-muted mb-1">Buscar Ticket, Cliente, CI o Serial (S/N)</label>
 											<div class="input-group input-group-sm border rounded-pill overflow-hidden bg-body shadow-sm">
 												<span class="input-group-text border-0 bg-transparent text-muted"><i class="ri-search-line"></i></span>
-												<input type="text" id="search-archived-input" class="form-control border-0 shadow-none ps-0" placeholder="Ej. Juan o RMA-..." />
+												<input type="text" id="search-supplier-waiting-input" class="form-control border-0 shadow-none ps-0" placeholder="Ej. RMA-..., Juan, CI o S/N..." />
 											</div>
 										</div>
-										<div class="col-12 col-sm-6 col-md-3">
-											<label class="form-label small fw-bold text-muted mb-1">Filtrar por Estado</label>
-											<select id="filter-archived-status" class="form-select form-select-sm rounded-pill shadow-sm">
-												<option value="">Todos los estados</option>
-												<option value="recibida">Nuevas solicitudes</option>
-												<option value="en proceso">En proceso</option>
-												<option value="finalizada">Finalizadas</option>
-											</select>
+										<div class="col-6 col-md-3">
+											<label class="form-label small fw-bold text-muted mb-1">Desde</label>
+											<input type="date" id="filter-supplier-waiting-start" class="form-control form-control-sm rounded-pill shadow-sm" />
 										</div>
-										<div class="col-6 col-sm-3 col-md-3">
+										<div class="col-6 col-md-3">
+											<label class="form-label small fw-bold text-muted mb-1">Hasta</label>
+											<input type="date" id="filter-supplier-waiting-end" class="form-control form-control-sm rounded-pill shadow-sm" />
+										</div>
+									</div>
+								</div>
+								<div class="card-body p-0">
+									<div class="table-responsive">
+										<table class="table table-hover table-striped mb-0 align-middle">
+											<thead class="table-light">
+												<tr>
+													<th class="px-4 py-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Ticket</th>
+													<th class="py-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Cliente</th>
+													<th class="py-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Producto (S/N)</th>
+													<th class="py-3" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Fecha de Creación</th>
+													<th class="px-4 py-3 text-end" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Acciones</th>
+												</tr>
+											</thead>
+											<tbody>
+												{supplierWaitingTickets.length === 0 ? (
+													<tr class="no-supplier-waiting-row">
+														<td colspan="5" class="text-center py-5 text-muted">
+															<i class="ri-time-line fs-2 mb-2 d-block opacity-50 text-warning"></i>
+															<span>No hay tickets en espera del proveedor actualmente.</span>
+														</td>
+													</tr>
+												) : (
+													supplierWaitingTickets.map((ticket) => (
+														<tr class="supplier-waiting-ticket-row" data-ticket-number={ticket.ticket_number} data-client-name={ticket.customer_details.name} data-ci={ticket.customer_details.ci} data-serial-number={ticket.product_serial_number} data-created-at={new Date(ticket.createdAt).toISOString()} style="cursor: pointer;">
+															<td class="px-4 py-3 fw-bold text-dark font-monospace">{ticket.ticket_number}</td>
+															<td class="py-3 fw-semibold">{ticket.customer_details.name}</td>
+															<td class="py-3 text-muted">{ticket.product_serial_number}</td>
+															<td class="py-3 text-muted">{formatDate(new Date(ticket.createdAt))}</td>
+															<td class="px-4 py-3 text-end">
+																<div class="d-flex gap-1 justify-content-end align-items-center" onclick="event.stopPropagation();">
+																	<button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 upload-resolution-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
+																		<i class="ri-file-upload-line me-1"></i>Subir Res. / Archivar
+																	</button>
+																	<button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 archive-ticket-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
+																		<i class="ri-archive-line me-1"></i>Archivar
+																	</button>
+																</div>
+															</td>
+														</tr>
+													))
+												)}
+												<tr class="no-supplier-waiting-results-row d-none">
+													<td colspan="5" class="text-center py-5 text-muted">
+														<i class="ri-search-line fs-2 mb-2 d-block opacity-50"></i>
+														<span>No se encontraron resultados para la búsqueda.</span>
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+								
+								<div class="card-footer bg-transparent border-top py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+									<span class="text-muted small" id="supplier-waiting-page-indicator">Página 1 de 1</span>
+									<div class="d-flex gap-2">
+										<button class="btn btn-sm btn-outline-secondary rounded-pill px-3" type="button" id="supplier-waiting-prev-btn" disabled>
+											<i class="ri-arrow-left-s-line me-1"></i> Anterior
+										</button>
+										<button class="btn btn-sm btn-outline-secondary rounded-pill px-3" type="button" id="supplier-waiting-next-btn" disabled>
+											Siguiente <i class="ri-arrow-right-s-line ms-1"></i>
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Archived Tickets Section (Collapse format list) -->
+						<div class="collapse" id="archivedTicketsSection">
+							<div class="card border border-light-subtle shadow-sm mb-5">
+								<div class="card-header bg-transparent py-4 border-bottom-0">
+									<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+										<div>
+											<h3 class="h5 mb-1 fw-bold text-dark"><i class="ri-archive-line me-2 text-secondary"></i>Listado Histórico (Archivados)</h3>
+											<p class="text-muted small mb-0">Tickets cerrados y archivados definitivamente. Modo solo lectura.</p>
+										</div>
+										<button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" id="export-archived-btn">
+											<i class="ri-file-excel-line me-1"></i> Exportar Excel
+										</button>
+									</div>
+									
+									<!-- Filtros de Búsqueda (Sin filtro por estado) -->
+									<div class="row g-2 align-items-end mt-2">
+										<div class="col-12 col-md-6">
+											<label class="form-label small fw-bold text-muted mb-1">Buscar Ticket, Cliente, CI o Serial (S/N)</label>
+											<div class="input-group input-group-sm border rounded-pill overflow-hidden bg-body shadow-sm">
+												<span class="input-group-text border-0 bg-transparent text-muted"><i class="ri-search-line"></i></span>
+												<input type="text" id="search-archived-input" class="form-control border-0 shadow-none ps-0" placeholder="Ej. RMA-..., Juan, CI o S/N..." />
+											</div>
+										</div>
+										<div class="col-6 col-md-3">
 											<label class="form-label small fw-bold text-muted mb-1">Desde</label>
 											<input type="date" id="filter-archived-start" class="form-control form-control-sm rounded-pill shadow-sm" />
 										</div>
-										<div class="col-6 col-sm-3 col-md-3">
+										<div class="col-6 col-md-3">
 											<label class="form-label small fw-bold text-muted mb-1">Hasta</label>
 											<input type="date" id="filter-archived-end" class="form-control form-control-sm rounded-pill shadow-sm" />
 										</div>
@@ -609,14 +712,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 													</tr>
 												) : (
 													archivedTickets.map((ticket) => (
-														<tr class="archived-ticket-row" data-ticket-number={ticket.ticket_number} data-client-name={ticket.customer_details.name} data-status={ticket.status} data-created-at={new Date(ticket.createdAt).toISOString()} style="cursor: pointer;">
+														<tr class="archived-ticket-row" data-ticket-number={ticket.ticket_number} data-client-name={ticket.customer_details.name} data-ci={ticket.customer_details.ci} data-serial-number={ticket.product_serial_number} data-status={ticket.status} data-created-at={new Date(ticket.createdAt).toISOString()} style="cursor: pointer;">
 															<td class="px-4 py-3 fw-bold text-dark font-monospace">{ticket.ticket_number}</td>
 															<td class="py-3 fw-semibold">{ticket.customer_details.name}</td>
 															<td class="py-3 text-muted">{ticket.product_serial_number}</td>
 															<td class="py-3 text-muted">{formatDate(new Date(ticket.createdAt))}</td>
 															<td class="px-4 py-3 text-end">
 																<span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-1.5 fw-normal" style="font-size: 0.72rem;">
-																	<i class="ri-archive-line me-1"></i>Archivado
+																	<i class="ri-lock-line me-1"></i>Archivado
 																</span>
 															</td>
 														</tr>
@@ -749,29 +852,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							<textarea class="form-control" id="finalize-main-comment" rows="3" placeholder="Resumen / motivo de la resolución..."></textarea>
 						</div>
 
-						<div class="alert alert-light border small py-2 mb-3">
-							Registra <strong>al menos una</strong> de las dos soluciones. Puedes completar la otra más adelante.
-						</div>
-
-						<div class="mb-3">
-							<label for="finalize-client-solution" class="form-label small fw-bold text-muted">Solución entregada al cliente</label>
-							<textarea class="form-control" id="finalize-client-solution" rows="2" placeholder="Qué se le dio / resolvió al cliente..."></textarea>
-						</div>
-
 						<div class="mb-3">
 							<label for="finalize-supplier-solution" class="form-label small fw-bold text-muted">Solución del proveedor</label>
 							<textarea class="form-control" id="finalize-supplier-solution" rows="2" placeholder="Qué nos dio / resolvió el proveedor..."></textarea>
 						</div>
 
-						<div class="row mt-3">
-							<div class="col-md-6 mb-3 mb-md-0">
-								<label for="finalize-client-transaction" class="form-label small fw-bold text-muted">Número de transacción cliente</label>
-								<input type="text" class="form-control" id="finalize-client-transaction" placeholder="Transacción cliente..." />
-							</div>
-							<div class="col-md-6">
-								<label for="finalize-supplier-transaction" class="form-label small fw-bold text-muted">Número de transacción proveedor</label>
-								<input type="text" class="form-control" id="finalize-supplier-transaction" placeholder="Transacción proveedor..." />
-							</div>
+						<div class="mb-3">
+							<label for="finalize-supplier-transaction" class="form-label small fw-bold text-muted">Número de transacción proveedor</label>
+							<input type="text" class="form-control" id="finalize-supplier-transaction" placeholder="Transacción proveedor..." />
 						</div>
 
 						<div class="alert alert-danger d-none mt-3 py-2 small" id="finalize-error"></div>
@@ -830,19 +918,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						<div class="alert alert-info border-0 shadow-sm rounded-3 p-3 mb-3 d-flex align-items-start gap-2">
 							<i class="ri-information-line fs-5 flex-shrink-0 text-info"></i>
 							<div class="small text-dark" style="font-size: 0.82rem; line-height: 1.45;">
-								Adjunta el comprobante de resolución (nota de venta, nota de descuento en imagen o PDF). Esta información se guardará en la <strong>bitácora interna</strong> y el ticket quedará <strong>finalizado y archivado</strong>.
+								Ingresa el número de transacción y/o el comentario de resolución para registrar el cierre y **archivar el ticket**.
 							</div>
-						</div>
-
-						<div class="mb-3">
-							<label class="form-label small fw-bold text-muted mb-1">Comprobante de Resolución (Imagen o PDF)</label>
-							<div class="border border-dashed rounded-3 p-3 text-center bg-body cursor-pointer transition-all" id="resolution-drop-zone" style="cursor: pointer;">
-								<i class="ri-upload-cloud-2-line fs-2 text-success d-block mb-1"></i>
-								<span class="small text-secondary fw-semibold d-block" id="resolution-file-label">Haz clic para seleccionar o arrastra una imagen/PDF</span>
-								<span class="text-muted d-block" style="font-size: 0.72rem;">Soporta JPG, PNG, WEBP y PDF</span>
-								<input type="file" id="resolution-file-input" class="d-none" accept="image/*,application/pdf" />
-							</div>
-							<div id="resolution-file-preview" class="mt-2.5"></div>
 						</div>
 
 						<div class="mb-3">
@@ -1652,9 +1729,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						(el as HTMLInputElement).checked = false;
 					});
 					(document.getElementById('finalize-main-comment') as HTMLTextAreaElement).value = '';
-					(document.getElementById('finalize-client-solution') as HTMLTextAreaElement).value = '';
 					(document.getElementById('finalize-supplier-solution') as HTMLTextAreaElement).value = '';
-					(document.getElementById('finalize-client-transaction') as HTMLInputElement).value = '';
 					(document.getElementById('finalize-supplier-transaction') as HTMLInputElement).value = '';
 					document.getElementById('finalize-error')?.classList.add('d-none');
 
@@ -1681,14 +1756,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 					const typeEl = document.querySelector('input[name="finalize-type"]:checked') as HTMLInputElement | null;
 					const mainComment = (document.getElementById('finalize-main-comment') as HTMLTextAreaElement).value.trim();
-					const clientSolution = (document.getElementById('finalize-client-solution') as HTMLTextAreaElement).value.trim();
 					const supplierSolution = (document.getElementById('finalize-supplier-solution') as HTMLTextAreaElement).value.trim();
-					const clientTransactionNumber = (document.getElementById('finalize-client-transaction') as HTMLInputElement).value.trim();
 					const supplierTransactionNumber = (document.getElementById('finalize-supplier-transaction') as HTMLInputElement).value.trim();
 
 					if (!typeEl) return showErr('Selecciona un tipo de resolución (Rechazo, Descuento o Reponer).');
 					if (!mainComment) return showErr('Escribe el comentario principal de la resolución.');
-					if (typeEl.value !== 'rechazo' && !clientSolution && !supplierSolution) return showErr('Registra al menos una solución (al cliente o del proveedor).');
 
 					const btn = document.getElementById('finalize-submit-btn') as HTMLButtonElement;
 					try {
@@ -1704,9 +1776,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								orderedNumbers: pendingFinalize.orderedNumbers,
 								resolutionType: typeEl.value,
 								mainComment,
-								clientSolution,
 								supplierSolution,
-								clientTransactionNumber,
 								supplierTransactionNumber,
 							}),
 						});
@@ -1869,7 +1939,20 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							}
 						}
 
-						if (nextStatus === 'finalizada' || nextStatus === 'rechazada') {
+						if (nextStatus === 'finalizada') {
+							// @ts-ignore
+							const ticket = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number === ticketNumber);
+							if (ticket) {
+								const step1 = !!ticket.step_left_at_branch;
+								const step2 = !!ticket.step_sent_to_distributor;
+								const step3 = !!ticket.step_resolved;
+								if (!step1 || !step2 || !step3) {
+									openCompleteStepsModal(ticketNumber, nextStatus, targetNumbers);
+									return;
+								}
+							}
+							openFinalizeModal(ticketNumber, nextStatus, targetNumbers);
+						} else if (nextStatus === 'rechazada') {
 							openFinalizeModal(ticketNumber, nextStatus, targetNumbers);
 						} else {
 							updateTicketStatus(ticketNumber, nextStatus, targetNumbers);
@@ -2156,24 +2239,33 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						const rLabel = resolutionLabels[ticket.resolution_type] || ticket.resolution_type;
 						const rTone = resolutionTones[ticket.resolution_type] || 'secondary';
 						resolutionHtml = `
-							<div class="mb-4">
-								<h6 class="fw-bold text-muted text-uppercase small mb-2" style="letter-spacing: 0.05em;">Resolución del Caso</h6>
+							<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm" style="background-color: #fff;">
+								<div class="d-flex justify-content-between align-items-center mb-2.5">
+									<h6 class="fw-bold text-muted text-uppercase small mb-0" style="letter-spacing: 0.05em;"><i class="ri-shield-check-line me-1.5 text-success"></i>Resolución del Caso</h6>
+									<span class="badge bg-${rTone}-subtle text-${rTone} rounded-pill px-3 py-1 fw-bold">${rLabel}</span>
+								</div>
 								<div class="p-3 bg-light rounded-3 border">
-									<div class="mb-2">
-										<span class="badge bg-${rTone}-subtle text-${rTone} rounded-pill px-3 py-1">${rLabel}</span>
+									<div class="mb-2.5">
+										<span class="small text-muted fw-bold d-block text-uppercase" style="font-size: 0.72rem;">Comentario principal</span>
+										<p class="mb-0 text-dark fw-medium" style="font-size: 0.88rem; line-height: 1.45;">${ticket.resolution_main_comment || '—'}</p>
 									</div>
-									<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Comentario principal:</strong><br>${ticket.resolution_main_comment || '—'}</p>
-									${ticket.client_solution ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Solución al cliente:</strong><br>${ticket.client_solution}</p>` : ''}
-									${ticket.client_transaction_number ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Nº Transacción Cliente:</strong><br>${ticket.client_transaction_number}</p>` : ''}
-									${ticket.supplier_solution ? `<p class="mb-2 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Solución del proveedor:</strong><br>${ticket.supplier_solution}</p>` : ''}
-									${ticket.supplier_transaction_number ? `<p class="mb-0 text-body" style="font-size: 0.85rem; line-height: 1.45;"><strong>Nº Transacción Proveedor:</strong><br>${ticket.supplier_transaction_number}</p>` : ''}
+									${ticket.supplier_solution ? `
+									<div class="mb-2.5 pt-2 border-top">
+										<span class="small text-muted fw-bold d-block text-uppercase" style="font-size: 0.72rem;">Solución del proveedor</span>
+										<p class="mb-0 text-dark" style="font-size: 0.85rem; line-height: 1.45;">${ticket.supplier_solution}</p>
+									</div>` : ''}
+									${ticket.supplier_transaction_number ? `
+									<div class="pt-2 border-top d-flex align-items-center justify-content-between">
+										<span class="small text-muted fw-bold text-uppercase" style="font-size: 0.72rem;">Nº Transacción Proveedor</span>
+										<span class="badge bg-dark text-white font-monospace px-2.5 py-1" style="font-size: 0.8rem;">${ticket.supplier_transaction_number}</span>
+									</div>` : ''}
 								</div>
 							</div>
 						`;
 					}
 
 					let editResolutionFormHtml = '';
-					if (ticket.status === 'finalizada' || ticket.status === 'rechazada') {
+					if (!ticket.archived && (ticket.status === 'finalizada' || ticket.status === 'rechazada')) {
 						const isRechazo = ticket.resolution_type === 'rechazo' ? 'checked' : '';
 						const isDescuento = ticket.resolution_type === 'descuento' ? 'checked' : '';
 						const isReponer = ticket.resolution_type === 'reponer' ? 'checked' : '';
@@ -2202,24 +2294,13 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								</div>
 
 								<div class="mb-3">
-									<label for="edit-res-client-solution" class="form-label small fw-bold text-muted">Solución entregada al cliente</label>
-									<textarea class="form-control form-control-sm" id="edit-res-client-solution" rows="2" placeholder="Qué se le dio / resolvió al cliente...">${ticket.client_solution || ''}</textarea>
-								</div>
-
-								<div class="mb-3">
 									<label for="edit-res-supplier-solution" class="form-label small fw-bold text-muted">Solución del proveedor</label>
 									<textarea class="form-control form-control-sm" id="edit-res-supplier-solution" rows="2" placeholder="Qué nos dio / resolvió el proveedor...">${ticket.supplier_solution || ''}</textarea>
 								</div>
 
-								<div class="row g-2 mb-3">
-									<div class="col-6">
-										<label for="edit-res-client-transaction" class="form-label small fw-bold text-muted">Transacción cliente</label>
-										<input type="text" class="form-control form-control-sm" id="edit-res-client-transaction" value="${ticket.client_transaction_number || ''}" placeholder="Nº Transacción..." />
-									</div>
-									<div class="col-6">
-										<label for="edit-res-supplier-transaction" class="form-label small fw-bold text-muted">Transacción proveedor</label>
-										<input type="text" class="form-control form-control-sm" id="edit-res-supplier-transaction" value="${ticket.supplier_transaction_number || ''}" placeholder="Nº Transacción..." />
-									</div>
+								<div class="mb-3">
+									<label for="edit-res-supplier-transaction" class="form-label small fw-bold text-muted">Transacción proveedor</label>
+									<input type="text" class="form-control form-control-sm" id="edit-res-supplier-transaction" value="${ticket.supplier_transaction_number || ''}" placeholder="Nº Transacción..." />
 								</div>
 
 								<div class="alert alert-danger d-none small py-1.5 px-3 mb-3" id="edit-res-error"></div>
@@ -2315,7 +2396,67 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						}
 					}).join('');
 
+					const isArchived = !!ticket.archived;
+
+					const lockBannerHtml = isArchived ? `
+						<div class="alert alert-secondary border border-secondary-subtle shadow-sm rounded-3 p-3 mb-4 d-flex align-items-center gap-2.5">
+							<i class="ri-lock-2-line fs-3 text-secondary flex-shrink-0"></i>
+							<div>
+								<strong class="d-block text-dark small">Ticket Archivado (Inmutable)</strong>
+								<span class="text-muted small" style="font-size: 0.78rem;">Este ticket ha sido cerrado y archivado definitivamente el ${ticket.archivedAtStr || ticket.updatedAtStr}. Se encuentra en modo solo lectura y no puede recibir cambios.</span>
+							</div>
+						</div>
+					` : '';
+
+					const addEvidenceBtnHtml = isArchived ? '' : `
+						<label class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 mb-0 fw-semibold d-inline-flex align-items-center gap-1" style="font-size: 0.72rem; cursor: pointer;" title="Subir nueva evidencia a este ticket">
+							<i class="ri-add-line"></i> Añadir Evidencia
+							<input type="file" id="admin-add-evidence-input" class="d-none" accept="image/*,video/*,.pdf" multiple />
+						</label>
+					`;
+
+					const chatPublicFormHtml = isArchived ? `
+						<div class="p-3 bg-light text-center text-muted small border-top rounded-bottom">
+							<i class="ri-lock-line me-1"></i>Ticket archivado. Chat público en modo solo lectura.
+						</div>
+					` : `
+						<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="external">
+							<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
+							<div class="d-flex align-items-center gap-2">
+								<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
+									<i class="ri-attachment-2 fs-5"></i>
+									<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
+								</label>
+								<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Mensaje para el cliente..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
+								<button type="submit" class="btn btn-sm btn-info text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Enviar mensaje">
+									<i class="ri-send-plane-fill fs-5"></i>
+								</button>
+							</div>
+						</form>
+					`;
+
+					const chatInternalFormHtml = isArchived ? `
+						<div class="p-3 bg-light text-center text-muted small border-top rounded-bottom">
+							<i class="ri-lock-line me-1"></i>Ticket archivado. Chat interno en modo solo lectura.
+						</div>
+					` : `
+						<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="internal">
+							<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
+							<div class="d-flex align-items-center gap-2">
+								<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
+									<i class="ri-attachment-2 fs-5"></i>
+									<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
+								</label>
+								<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Nota interna del equipo..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
+								<button type="submit" class="btn btn-sm btn-dark text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Guardar nota interna">
+									<i class="ri-send-plane-fill fs-5"></i>
+								</button>
+							</div>
+						</form>
+					`;
+
 					modalBody.innerHTML = `
+						${lockBannerHtml}
 						<div class="row g-4">
 							<!-- Columna izquierda: Datos del caso, Evidencias, Descripción e iOS Checklist -->
 							<div class="col-12 col-xl-5">
@@ -2382,10 +2523,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<div class="card border border-light-subtle rounded-3 p-3.5 mb-4 shadow-sm">
 									<div class="d-flex justify-content-between align-items-center mb-3">
 										<h6 class="fw-bold text-muted text-uppercase small mb-0" style="letter-spacing: 0.05em;"><i class="ri-attachment-line me-1.5 text-secondary"></i>Evidencias y Archivos Adjuntos</h6>
-										<label class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 mb-0 fw-semibold d-inline-flex align-items-center gap-1" style="font-size: 0.72rem; cursor: pointer;" title="Subir nueva evidencia a este ticket">
-											<i class="ri-add-line"></i> Añadir Evidencia
-											<input type="file" id="admin-add-evidence-input" class="d-none" accept="image/*,video/*,.pdf" multiple />
-										</label>
+										${addEvidenceBtnHtml}
 									</div>
 									<div class="row g-2">
 										${receiptBlock}
@@ -2399,15 +2537,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 									<h6 class="fw-bold text-muted text-uppercase small mb-3" style="letter-spacing: 0.05em;"><i class="ri-checkbox-multiple-line me-1.5 text-secondary"></i>Pasos Obligatorios para Resolución</h6>
 									<div class="d-flex flex-column gap-3">
 										<div class="d-flex align-items-center">
-											<input class="ios-checkbox-input" type="checkbox" id="step-left-at-branch" ${ticket.step_left_at_branch ? 'checked' : ''} />
+											<input class="ios-checkbox-input" type="checkbox" id="step-left-at-branch" ${ticket.step_left_at_branch ? 'checked' : ''} ${isArchived ? 'disabled' : ''} />
 											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-left-at-branch" style="cursor: pointer;">Producto dejado en la sucursal</label>
 										</div>
 										<div class="d-flex align-items-center">
-											<input class="ios-checkbox-input" type="checkbox" id="step-sent-to-distributor" ${ticket.step_sent_to_distributor ? 'checked' : ''} />
+											<input class="ios-checkbox-input" type="checkbox" id="step-sent-to-distributor" ${ticket.step_sent_to_distributor ? 'checked' : ''} ${isArchived ? 'disabled' : ''} />
 											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-sent-to-distributor" style="cursor: pointer;">Producto mandado con distribuidor</label>
 										</div>
 										<div class="d-flex align-items-center">
-											<input class="ios-checkbox-input" type="checkbox" id="step-resolved" ${ticket.step_resolved ? 'checked' : ''} />
+											<input class="ios-checkbox-input" type="checkbox" id="step-resolved" ${ticket.step_resolved ? 'checked' : ''} ${isArchived ? 'disabled' : ''} />
 											<label class="ios-checkbox-label ms-3 fw-semibold text-dark small" for="step-resolved" style="cursor: pointer;">Producto dado solución</label>
 										</div>
 									</div>
@@ -2434,19 +2572,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<div class="cx-chat cx-chat-public flex-grow-1 h-100">
 												<div class="cx-chat-head"><i class="ri-eye-line"></i><div><span class="cx-chat-title">Público</span><span class="cx-chat-sub">Lo ve el cliente</span></div></div>
 												<div class="cx-chat-body" style="height: 460px;">${publicHtml || '<p class="cx-chat-empty">Aún no hay mensajes para el cliente.</p>'}</div>
-												<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="external">
-													<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
-													<div class="d-flex align-items-center gap-2">
-														<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
-															<i class="ri-attachment-2 fs-5"></i>
-															<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
-														</label>
-														<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Mensaje para el cliente..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
-														<button type="submit" class="btn btn-sm btn-info text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Enviar mensaje">
-															<i class="ri-send-plane-fill fs-5"></i>
-														</button>
-													</div>
-												</form>
+												${chatPublicFormHtml}
 											</div>
 										</div>
 										<!-- Chat Interno -->
@@ -2454,19 +2580,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<div class="cx-chat cx-chat-internal flex-grow-1 h-100">
 												<div class="cx-chat-head"><i class="ri-lock-line"></i><div><span class="cx-chat-title">Interno</span><span class="cx-chat-sub">Solo el equipo</span></div></div>
 												<div class="cx-chat-body" style="height: 460px;">${internalHtml || '<p class="cx-chat-empty">Aún no hay notas internas.</p>'}</div>
-												<form class="cx-chat-input mt-auto p-2.5 border-top bg-white rounded-bottom d-flex flex-column gap-2" data-visibility="internal">
-													<div class="chat-file-previews d-flex flex-wrap gap-2 p-2 bg-light rounded-3 border d-none"></div>
-													<div class="d-flex align-items-center gap-2">
-														<label class="btn btn-sm btn-light border text-secondary rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px; cursor: pointer;" title="Adjuntar fotos, videos o PDFs">
-															<i class="ri-attachment-2 fs-5"></i>
-															<input type="file" class="d-none chat-file-input" accept="image/*,video/*,.pdf" multiple />
-														</label>
-														<textarea class="form-control form-control-sm border-light-subtle rounded-3 py-1.5 px-3 shadow-none flex-grow-1" rows="1" placeholder="Nota interna del equipo..." style="resize: none; min-height: 36px; font-size: 0.83rem; line-height: 1.4;"></textarea>
-														<button type="submit" class="btn btn-sm btn-dark text-white rounded-circle d-flex align-items-center justify-content-center p-0 flex-shrink-0" style="width: 36px; height: 36px;" title="Guardar nota interna">
-															<i class="ri-send-plane-fill fs-5"></i>
-														</button>
-													</div>
-												</form>
+												${chatInternalFormHtml}
 											</div>
 										</div>
 									</div>
@@ -2895,12 +3009,9 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				const resSubmitBtn = document.getElementById('submit-resolution-btn') as HTMLButtonElement;
 
 				function resetResolutionModal() {
-					if (resFileInput) resFileInput.value = '';
 					if (resTxInput) resTxInput.value = '';
 					if (resNoteInput) resNoteInput.value = '';
 					if (resErrorEl) { resErrorEl.textContent = ''; resErrorEl.classList.add('d-none'); }
-					if (resFileLabel) resFileLabel.textContent = 'Haz clic para seleccionar o arrastra una imagen/PDF';
-					if (resFilePreview) resFilePreview.innerHTML = '';
 					if (resSubmitBtn) {
 						resSubmitBtn.disabled = false;
 						resSubmitBtn.innerHTML = '<i class="ri-check-double-line me-1"></i> Guardar Resolución y Archivar';
@@ -2921,65 +3032,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					});
 				});
 
-				resDropZone?.addEventListener('click', () => resFileInput?.click());
-
-				resFileInput?.addEventListener('change', () => {
-					const file = resFileInput.files?.[0];
-					if (!file || !resFilePreview) return;
-
-					const ext = (file.name.split('.').pop() || '').toLowerCase();
-					const isPdf = ext === 'pdf';
-					const isImg = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
-
-					if (!isPdf && !isImg) {
-						if (resErrorEl) {
-							resErrorEl.textContent = 'Formato no soportado. Selecciona una imagen (JPG, PNG, WEBP) o un documento PDF.';
-							resErrorEl.classList.remove('d-none');
-						}
-						resFileInput.value = '';
-						return;
-					}
-					if (resErrorEl) resErrorEl.classList.add('d-none');
-
-					if (resFileLabel) resFileLabel.textContent = file.name;
-
-					if (isPdf) {
-						resFilePreview.innerHTML = `
-							<div class="d-flex align-items-center gap-2 p-2 border rounded bg-light">
-								<i class="ri-file-pdf-2-line fs-3 text-danger"></i>
-								<div class="d-flex flex-column text-truncate">
-									<span class="small fw-bold text-dark text-truncate">${file.name}</span>
-									<span class="text-muted" style="font-size:0.7rem;">Documento PDF (${(file.size / 1024).toFixed(1)} KB)</span>
-								</div>
-							</div>
-						`;
-					} else {
-						const reader = new FileReader();
-						reader.onload = (ev) => {
-							resFilePreview.innerHTML = `
-								<div class="d-flex align-items-center gap-2 p-2 border rounded bg-light">
-									<img src="${ev.target?.result}" alt="Preview" class="rounded object-fit-cover" style="width: 50px; height: 50px;" />
-									<div class="d-flex flex-column text-truncate">
-										<span class="small fw-bold text-dark text-truncate">${file.name}</span>
-										<span class="text-muted" style="font-size:0.7rem;">Imagen (${(file.size / 1024).toFixed(1)} KB)</span>
-									</div>
-								</div>
-							`;
-						};
-						reader.readAsDataURL(file);
-					}
-				});
-
 				resSubmitBtn?.addEventListener('click', async () => {
 					if (!resTicketInput || !resSubmitBtn) return;
 					const ticketNumber = resTicketInput.value;
 					const transactionNumber = resTxInput?.value.trim() || '';
 					const note = resNoteInput?.value.trim() || '';
-					const file = resFileInput?.files?.[0];
 
-					if (!file && !transactionNumber && !note) {
+					if (!transactionNumber && !note) {
 						if (resErrorEl) {
-							resErrorEl.textContent = 'Debes adjuntar al menos un archivo (imagen/PDF), un número de transacción o una nota de resolución.';
+							resErrorEl.textContent = 'Ingresa el número de transacción o una nota / comentario de resolución.';
 							resErrorEl.classList.remove('d-none');
 						}
 						return;
@@ -2990,15 +3051,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						resSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando y Archivando...';
 						if (resErrorEl) resErrorEl.classList.add('d-none');
 
-						const fd = new FormData();
-						fd.append('ticketNumber', ticketNumber);
-						if (transactionNumber) fd.append('transactionNumber', transactionNumber);
-						if (note) fd.append('note', note);
-						if (file) fd.append('file', file);
-
 						const res = await fetch('/api/tickets/upload-resolution', {
 							method: 'POST',
-							body: fd,
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({
+								ticketNumber,
+								transactionNumber,
+								note,
+							}),
 						});
 
 						const data = await res.json();
@@ -3020,10 +3080,10 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				});
 
 				// Table row click handlers to open details modal
-				document.querySelectorAll('.archived-ticket-row, .archived-preview-item').forEach(row => {
+				document.querySelectorAll('.archived-ticket-row, .supplier-waiting-ticket-row, .archived-preview-item').forEach(row => {
 					row.addEventListener('click', (e) => {
 						const target = e.target as HTMLElement;
-						if (target.closest('.unarchive-ticket-btn')) return;
+						if (target.closest('.unarchive-ticket-btn') || target.closest('.upload-resolution-btn') || target.closest('.archive-ticket-btn')) return;
 
 						const tNum = row.getAttribute('data-ticket-number');
 						// @ts-ignore
@@ -3034,6 +3094,115 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					});
 				});
 
+				// Client-Side Pagination & Search for Supplier Waiting Tickets Table
+				let supplierWaitingPage = 1;
+				const supplierWaitingPageSize = 5;
+				let filteredSupplierWaitingRows: Element[] = [];
+
+				function updateSupplierWaitingPagination() {
+					const rows = document.querySelectorAll('.supplier-waiting-ticket-row');
+					const query = (document.getElementById('search-supplier-waiting-input') as HTMLInputElement)?.value.toLowerCase().trim() || '';
+					const filterStart = (document.getElementById('filter-supplier-waiting-start') as HTMLInputElement)?.value || '';
+					const filterEnd = (document.getElementById('filter-supplier-waiting-end') as HTMLInputElement)?.value || '';
+					
+					filteredSupplierWaitingRows = [];
+					rows.forEach(row => {
+						const ticketNum = row.getAttribute('data-ticket-number')?.toLowerCase() || '';
+						const clientName = row.getAttribute('data-client-name')?.toLowerCase() || '';
+						const ci = row.getAttribute('data-ci')?.toLowerCase() || '';
+						const serialNumber = row.getAttribute('data-serial-number')?.toLowerCase() || '';
+						const createdAt = (row as HTMLElement).getAttribute('data-created-at') || '';
+						const dateOnly = createdAt ? createdAt.substring(0, 10) : '';
+						
+						let matches = true;
+						
+						if (query && !ticketNum.includes(query) && !clientName.includes(query) && !ci.includes(query) && !serialNumber.includes(query)) {
+							matches = false;
+						}
+						
+						if (filterStart && dateOnly < filterStart) {
+							matches = false;
+						}
+						
+						if (filterEnd && dateOnly > filterEnd) {
+							matches = false;
+						}
+						
+						if (matches) {
+							filteredSupplierWaitingRows.push(row);
+						} else {
+							(row as HTMLElement).style.setProperty('display', 'none', 'important');
+						}
+					});
+					
+					const total = filteredSupplierWaitingRows.length;
+					const totalPages = Math.max(Math.ceil(total / supplierWaitingPageSize), 1);
+					
+					if (supplierWaitingPage > totalPages) {
+						supplierWaitingPage = totalPages;
+					}
+					
+					const startIdx = (supplierWaitingPage - 1) * supplierWaitingPageSize;
+					const endIdx = startIdx + supplierWaitingPageSize;
+					
+					filteredSupplierWaitingRows.forEach((row, idx) => {
+						if (idx >= startIdx && idx < endIdx) {
+							(row as HTMLElement).style.setProperty('display', '', 'important');
+						} else {
+							(row as HTMLElement).style.setProperty('display', 'none', 'important');
+						}
+					});
+					
+					const noResultsRow = document.querySelector('.no-supplier-waiting-results-row');
+					if (noResultsRow) {
+						if (total === 0 && rows.length > 0) {
+							noResultsRow.classList.remove('d-none');
+						} else {
+							noResultsRow.classList.add('d-none');
+						}
+					}
+					
+					const indicator = document.getElementById('supplier-waiting-page-indicator');
+					if (indicator) {
+						indicator.textContent = `Página ${supplierWaitingPage} de ${totalPages} (${total} registros)`;
+					}
+					
+					const prevBtn = document.getElementById('supplier-waiting-prev-btn') as HTMLButtonElement;
+					const nextBtn = document.getElementById('supplier-waiting-next-btn') as HTMLButtonElement;
+					if (prevBtn) prevBtn.disabled = supplierWaitingPage === 1;
+					if (nextBtn) nextBtn.disabled = supplierWaitingPage === totalPages;
+				}
+
+				document.getElementById('supplier-waiting-prev-btn')?.addEventListener('click', () => {
+					if (supplierWaitingPage > 1) {
+						supplierWaitingPage--;
+						updateSupplierWaitingPagination();
+					}
+				});
+
+				document.getElementById('supplier-waiting-next-btn')?.addEventListener('click', () => {
+					const totalPages = Math.max(Math.ceil(filteredSupplierWaitingRows.length / supplierWaitingPageSize), 1);
+					if (supplierWaitingPage < totalPages) {
+						supplierWaitingPage++;
+						updateSupplierWaitingPagination();
+					}
+				});
+
+				document.getElementById('search-supplier-waiting-input')?.addEventListener('input', () => {
+					supplierWaitingPage = 1;
+					updateSupplierWaitingPagination();
+				});
+
+				document.getElementById('filter-supplier-waiting-start')?.addEventListener('change', () => {
+					supplierWaitingPage = 1;
+					updateSupplierWaitingPagination();
+				});
+
+				document.getElementById('filter-supplier-waiting-end')?.addEventListener('change', () => {
+					supplierWaitingPage = 1;
+					updateSupplierWaitingPagination();
+				});
+
 				// Client-Side Pagination & Search for Archived Tickets Table
 				let archivedPage = 1;
 				const archivedPageSize = 5;
@@ -3042,7 +3211,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				function updateArchivedPagination() {
 					const rows = document.querySelectorAll('.archived-ticket-row');
 					const query = (document.getElementById('search-archived-input') as HTMLInputElement)?.value.toLowerCase().trim() || '';
-					const filterStatus = (document.getElementById('filter-archived-status') as HTMLSelectElement)?.value || '';
 					const filterStart = (document.getElementById('filter-archived-start') as HTMLInputElement)?.value || '';
 					const filterEnd = (document.getElementById('filter-archived-end') as HTMLInputElement)?.value || '';
 					
@@ -3050,19 +3218,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					rows.forEach(row => {
 						const ticketNum = row.getAttribute('data-ticket-number')?.toLowerCase() || '';
 						const clientName = row.getAttribute('data-client-name')?.toLowerCase() || '';
-						const status = (row as HTMLElement).getAttribute('data-status') || '';
+						const ci = row.getAttribute('data-ci')?.toLowerCase() || '';
+						const serialNumber = row.getAttribute('data-serial-number')?.toLowerCase() || '';
 						const createdAt = (row as HTMLElement).getAttribute('data-created-at') || '';
 						const dateOnly = createdAt ? createdAt.substring(0, 10) : '';
 						
 						let matches = true;
 						
-						// Query match
-						if (query && !ticketNum.includes(query) && !clientName.includes(query)) {
-							matches = false;
-						}
-						
-						// Status match
-						if (filterStatus && status !== filterStatus) {
+						// Query match (ticket, client, CI, or S/N)
+						if (query && !ticketNum.includes(query) && !clientName.includes(query) && !ci.includes(query) && !serialNumber.includes(query)) {
 							matches = false;
 						}
 						
@@ -3148,11 +3312,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					updateArchivedPagination();
 				});
 
-				// Event listeners for status and date filters
-				document.getElementById('filter-archived-status')?.addEventListener('change', () => {
-					archivedPage = 1;
-					updateArchivedPagination();
-				});
+				// Event listeners for date filters
 				document.getElementById('filter-archived-start')?.addEventListener('change', () => {
 					archivedPage = 1;
 					updateArchivedPagination();
@@ -3227,8 +3387,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<td>${statusMap[t.status] || t.status}</td>
 								<td>${resMap[t.resolution_type] || t.resolution_type || '—'}</td>
 								<td>${t.resolution_main_comment || '—'}</td>
-								<td>${t.client_solution || '—'}</td>
-								<td>${t.client_transaction_number || '—'}</td>
 								<td>${t.supplier_solution || '—'}</td>
 								<td>${t.supplier_transaction_number || '—'}</td>
 								<td>${t.issue_description || ''}</td>
@@ -3237,6 +3395,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<td>${evidenceHtml}</td>
 								<td>${t.createdAtStr || t.createdAt}</td>
 								<td>${t.updatedAtStr || t.updatedAt}</td>
+								<td>${t.archivedAtStr || (t.archived ? (t.updatedAtStr || t.updatedAt) : '—')}</td>
 							</tr>
 						`;
 					});
@@ -3311,7 +3470,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 										<td colspan="3"><b>${tickets.filter((t: any) => t.status === 'rechazada').length}</b></td>
 									</tr>
 									<tr style="height: 25px;">
-										<td colspan="21" style="border: none; background-color: #ffffff;"></td>
+										<td colspan="20" style="border: none; background-color: #ffffff;"></td>
 									</tr>
 								</tbody>
 							</table>
@@ -3330,8 +3489,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 										<th>Estado</th>
 										<th>Tipo de Resolución</th>
 										<th>Comentario de Resolución</th>
-										<th>Solución Cliente</th>
-										<th>Transacción Cliente</th>
 										<th>Solución Empresa / Proveedor</th>
 										<th>Transacción Proveedor</th>
 										<th>Descripción del Inconveniente</th>
@@ -3340,6 +3497,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 										<th>Evidencias</th>
 										<th>Fecha de Creación</th>
 										<th>Última Actualización</th>
+										<th>Fecha de Cierre (Archivado)</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -3439,6 +3597,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					exportToExcelHTML('RMA_Solicitudes_Activas.xls', activeTickets);
 				});
 
+				// Supplier Waiting tickets Excel export click handler
+				document.getElementById('export-supplier-waiting-btn')?.addEventListener('click', () => {
+					const visibleTicketNumbers = filteredSupplierWaitingRows.map(row => row.getAttribute('data-ticket-number'));
+					// @ts-ignore
+					const supplierWaitingFiltered = (window.ALL_TICKETS || []).filter(t => t.status === 'finalizada' && !t.archived && visibleTicketNumbers.includes(t.ticket_number));
+					exportToExcelHTML('RMA_Espera_Proveedor.xls', supplierWaitingFiltered);
+				});
+
 				// Archived tickets Excel export click handler
 				document.getElementById('export-archived-btn')?.addEventListener('click', () => {
 					const visibleTicketNumbers = filteredArchivedRows.map(row => row.getAttribute('data-ticket-number'));
@@ -3493,6 +3659,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				});
 
 				// Initial execution
+				updateSupplierWaitingPagination();
 				updateArchivedPagination();
 
 				// Abrir automáticamente un ticket si llega ?ticket=RMA-... (ej. desde Clientes)
@@ -3503,7 +3670,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					if (t) openTicketDetailsModal(t);
 				}
 
-				// Live search on active tickets (Kanban board only)
+				// Live search on active tickets (Kanban board only) - Búsqueda por Ticket, Cliente, Código, CI y SN
 				const globalSearchInput = document.getElementById('global-search-input');
 				globalSearchInput?.addEventListener('input', (e) => {
 					const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
@@ -3513,7 +3680,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					cards.forEach(card => {
 						const ticketNum = card.getAttribute('data-ticket-number')?.toLowerCase() || '';
 						const clientName = card.querySelector('h4')?.textContent?.toLowerCase() || '';
-						if (ticketNum.includes(query) || clientName.includes(query)) {
+						
+						// Search match with window.ALL_TICKETS for CI and S/N
+						// @ts-ignore
+						const ticket = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number.toLowerCase() === ticketNum);
+						const ci = ticket?.customer_details?.ci?.toLowerCase() || '';
+						const sn = ticket?.product_serial_number?.toLowerCase() || '';
+
+						if (ticketNum.includes(query) || clientName.includes(query) || ci.includes(query) || sn.includes(query)) {
 							(card as HTMLElement).style.setProperty('display', '', 'important');
 						} else {
 							(card as HTMLElement).style.setProperty('display', 'none', 'important');

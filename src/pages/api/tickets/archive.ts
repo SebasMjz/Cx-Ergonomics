@@ -56,7 +56,10 @@ export const POST: APIRoute = async ({ request }) => {
 		const updatedTicket = await TicketModel.findOneAndUpdate(
 			{ ticket_number: ticketNumber },
 			{
-				$set: { archived: !!archived },
+				$set: {
+					archived: !!archived,
+					archivedAt: archived ? new Date() : undefined,
+				},
 				$push: { history: historyItem },
 			},
 			{ new: true }

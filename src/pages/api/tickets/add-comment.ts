@@ -44,6 +44,13 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
+		if (ticket.archived) {
+			return new Response(
+				JSON.stringify({ error: 'Un ticket archivado no puede sufrir ningún cambio de ninguna forma.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		// 5. Add Comment to History Array
 		const historyItem = {
 			status: ticket.status,

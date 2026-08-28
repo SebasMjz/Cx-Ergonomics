@@ -1,7 +1,4 @@
 import type { APIRoute } from 'astro';
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { readCookieValue, verifyAuthToken } from '../../../lib/auth/jwt';
 import { connectMongoose } from '../../../lib/mongo';
 import { TicketModel } from '../../../lib/models/Ticket';
@@ -19,12 +16,23 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// 2. Parse Multipart Form Data
-		const formData = await request.formData();
-		const ticketNumber = (formData.get('ticketNumber') as string || '').trim();
-		const transactionNumber = (formData.get('transactionNumber') as string || '').trim();
-		const note = (formData.get('note') as string || '').trim();
-		const file = formData.get('file') as File | null;
+		// 2. Parse Payload (JSON or FormData)
+		let ticketNumber = '';
+		let transactionNumber = '';
+		let note = '';
+
+		const contentType = request.headers.get('content-type') || '';
+		if (contentType.includes('application/json')) {
+			const body = await request.json();
+			ticketNumber = String(body.ticketNumber || '').trim();
+			transactionNumber = String(body.transactionNumber || '').trim();
+			note = String(body.note || '').trim();
+		} else {
+			const formData = await request.formData();
+			ticketNumber = (formData.get('ticketNumber') as string || '').trim();
+			transactionNumber = (formData.get('transactionNumber') as string || '').trim();
+			note = (formData.get('note') as string || '').trim();
+		}
 
 		if (!ticketNumber) {
 			return new Response(JSON.stringify({ error: 'El número de ticket es obligatorio.' }), {
@@ -33,39 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// 3. Handle File Upload if provided
-		let publicUrl = '';
-		if (file && file.size > 0) {
-			const ext = path.extname(file.name).toLowerCase();
-			const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.gif'];
-			if (!allowedExts.includes(ext)) {
-				return new Response(
-					JSON.stringify({ error: 'Formato de archivo no permitido. Solo se aceptan imágenes (JPG, PNG, WEBP) o documentos PDF.' }),
-					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
-				);
-			}
-
-			const arrayBuffer = await file.arrayBuffer();
-			const buffer = Buffer.from(arrayBuffer);
-
-			const uploadsRoot = process.env.UPLOADS_DIR
-				? path.resolve(process.env.UPLOADS_DIR)
-				: path.resolve(process.cwd(), 'uploads');
-			const targetDir = path.join(uploadsRoot, 'rma', 'resolutions');
-
-			fs.mkdirSync(targetDir, { recursive: true });
-
-			const filename = `${Date.now()}-${uuidv4()}${ext}`;
-			const filePath = path.join(targetDir, filename);
-
-			fs.writeFileSync(filePath, buffer);
-
-			const relative = path.relative(uploadsRoot, filePath);
-			const normalized = relative.split(path.sep).join('/');
-			publicUrl = `/uploads/${normalized}`;
-		}
-
-		// 4. Connect to Database & Find Ticket
+		// 3. Connect to Database & Find Ticket
 		await connectMongoose();
 		const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
 
@@ -76,34 +52,40 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// 5. Build Internal History Entry & Resolution Update
+		if (ticket.archived) {
+			return new Response(
+				JSON.stringify({ error: 'Un ticket archivado no puede sufrir ningún cambio de ninguna forma.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
+		// 4. Build Internal History Entry & Resolution Update
 		const now = new Date();
-		let historyNote = note || 'Se adjuntó resolución y se archivó el ticket.';
+		let historyNote = note || 'Se registró resolución y se archivó el ticket.';
 		if (transactionNumber) {
 			historyNote += ` — Nº Transacción: ${transactionNumber}`;
 		}
-
-		const attachments = publicUrl ? [publicUrl] : [];
 
 		const historyItem = {
 			status: 'finalizada' as const,
 			note: historyNote,
 			updated_by_user_id: session.sub,
 			author_name: session.name,
-			visibility: 'internal' as const, // Guardar en interno, sin enviar al chat público del cliente
-			attachments,
+			visibility: 'internal' as const,
+			attachments: [],
 			updated_at: now,
 		};
 
 		const updateFields: Record<string, any> = {
 			status: 'finalizada',
 			archived: true,
+			archivedAt: now,
 		};
 
 		if (transactionNumber) {
-			updateFields.client_transaction_number = transactionNumber;
+			updateFields.supplier_transaction_number = transactionNumber;
 		}
-		if (note && !ticket.resolution_main_comment) {
+		if (note) {
 			updateFields.resolution_main_comment = note;
 		}
 
@@ -123,6 +105,7 @@ export const POST: APIRoute = async ({ request }) => {
 					ticket_number: updatedTicket?.ticket_number,
 					status: updatedTicket?.status,
 					archived: updatedTicket?.archived,
+					archivedAt: updatedTicket?.archivedAt,
 				},
 			}),
 			{

@@ -42,12 +42,28 @@ export const POST: APIRoute = async ({ request }) => {
 		};
 		let resolutionUpdate: Record<string, string> = {};
 
+		// 3. Connect to Database
+		await connectMongoose();
+
+		const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
+		if (!ticket) {
+			return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
+				status: 404,
+				headers: { 'content-type': 'application/json; charset=utf-8' },
+			});
+		}
+
+		if (ticket.archived) {
+			return new Response(
+				JSON.stringify({ error: 'Un ticket archivado no puede sufrir ningún cambio de ninguna forma.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		if (status === 'finalizada' || status === 'rechazada') {
 			const resolutionType = status === 'rechazada' ? 'rechazo' : String(body.resolutionType || '').trim();
 			const mainComment = String(body.mainComment || '').trim();
-			const clientSolution = String(body.clientSolution || '').trim();
 			const supplierSolution = String(body.supplierSolution || '').trim();
-			const clientTransaction = String(clientTransactionNumber || '').trim();
 			const supplierTransaction = String(supplierTransactionNumber || '').trim();
 
 			if (!resolutionLabels[resolutionType]) {
@@ -62,34 +78,13 @@ export const POST: APIRoute = async ({ request }) => {
 					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
 				);
 			}
-			// En descuento/reponer exigimos al menos una solución. En rechazo basta el motivo
-			// (comentario principal), ya que no hay una "solución entregada".
-			if (resolutionType !== 'rechazo' && !clientSolution && !supplierSolution) {
-				return new Response(
-					JSON.stringify({ error: 'Debes registrar al menos una solución (al cliente o del proveedor).' }),
-					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
-				);
-			}
 
 			resolutionUpdate = {
 				resolution_type: resolutionType,
 				resolution_main_comment: mainComment,
-				client_solution: clientSolution,
 				supplier_solution: supplierSolution,
-				client_transaction_number: clientTransaction,
 				supplier_transaction_number: supplierTransaction,
 			};
-		}
-
-		// 3. Connect to Database
-		await connectMongoose();
-
-		const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
-		if (!ticket) {
-			return new Response(JSON.stringify({ error: 'Ticket no encontrado' }), {
-				status: 404,
-				headers: { 'content-type': 'application/json; charset=utf-8' },
-			});
 		}
 
 		// Validación: No está permitido mover un ticket a un estado anterior de manera manual

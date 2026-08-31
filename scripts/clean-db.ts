@@ -100,15 +100,8 @@ async function main() {
     }
   }
 
-  // Usuarios: mantener sólo el admin del .env
-  try {
-    const usersBefore = await UserModel.countDocuments();
-    await UserModel.deleteMany({ email: { $ne: adminEmail } });
-    const usersAfter = await UserModel.countDocuments();
-    console.log(`Usuarios: antes=${usersBefore} ahora=${usersAfter} (se mantiene ${adminEmail})`);
-  } catch (err) {
-    console.error('Error limpiando usuarios:', err);
-  }
+  // Usuarios: preservados intactos per request
+  console.log('Usuarios: preservados todos los usuarios intactos.');
 
   // Eliminar archivos en uploads
   try {

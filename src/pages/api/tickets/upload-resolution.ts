@@ -44,6 +44,13 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
+		if (!transactionNumber || !note) {
+			return new Response(
+				JSON.stringify({ error: 'Debes ingresar obligatoriamente tanto el número de transacción/nota como la descripción de la resolución.' }),
+				{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+			);
+		}
+
 		// 3. Connect to Database & Find Ticket
 		await connectMongoose();
 		const ticket = await TicketModel.findOne({ ticket_number: ticketNumber });
@@ -82,6 +89,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const updateFields: Record<string, any> = {
 			status: 'finalizada',
 			archived: shouldArchive,
+			in_supplier_waiting: false,
 		};
 
 		if (shouldArchive) {

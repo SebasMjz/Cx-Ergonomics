@@ -68,11 +68,11 @@ const nonArchivedTickets = (await TicketModel.find({ archived: { $ne: true } })
 	.sort({ order: 1, updatedAt: -1 })
 	.lean()) as DashboardTicket[];
 
-// Tickets en espera del proveedor (finalizados pero no archivados aún)
-const supplierWaitingTickets = nonArchivedTickets.filter((t) => t.status === 'finalizada');
+// Tickets en espera del proveedor (con in_supplier_waiting === true)
+const supplierWaitingTickets = nonArchivedTickets.filter((t) => t.in_supplier_waiting);
 
-// Tickets activos para el tablero Kanban
-const activeTickets = nonArchivedTickets;
+// Tickets activos para el tablero Kanban (excluye los que están en espera del proveedor)
+const activeTickets = nonArchivedTickets.filter((t) => !t.in_supplier_waiting);
 
 // Fetch archived tickets separately
 const archivedTickets = (await TicketModel.find({ archived: true })
@@ -178,11 +178,12 @@ const allTicketsByStatus = allTickets.reduce(
 );
 
 const totalTickets = allTickets.length;
-const reviewTickets = allTicketsByStatus.recibida.length;
-const inProgressTickets = allTicketsByStatus['en proceso'].length;
-const inRevisionTickets = allTicketsByStatus['en revision'] ? allTicketsByStatus['en revision'].length : 0;
-const doneTickets = allTicketsByStatus.finalizada.length;
-const rejectedTickets = allTicketsByStatus.rechazada ? allTicketsByStatus.rechazada.length : 0;
+const reviewTickets = ticketsByStatus.recibida ? ticketsByStatus.recibida.length : 0;
+const inProgressTickets = ticketsByStatus['en proceso'] ? ticketsByStatus['en proceso'].length : 0;
+const inRevisionTickets = ticketsByStatus['en revision'] ? ticketsByStatus['en revision'].length : 0;
+const doneTickets = ticketsByStatus.finalizada ? ticketsByStatus.finalizada.length : 0;
+const supplierWaitingCount = supplierWaitingTickets.length;
+const rejectedTickets = ticketsByStatus.rechazada ? ticketsByStatus.rechazada.length : 0;
 const openTickets = reviewTickets + inProgressTickets + inRevisionTickets;
 
 
@@ -312,13 +313,13 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						</div>
 
 						<!-- Statistics cards (Small Boxes - Grayscale style, Flat borders, no neon) -->
-						<div class="row g-4 mb-5">
+						<div class="row g-3 mb-5 row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-7">
 							<!-- Casos Totales -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-dark text-white border-0 shadow-sm">
 									<div class="inner text-white">
-										<h3 class="text-white">{totalTickets}</h3>
-										<p class="text-white-50">Casos Totales</p>
+										<h3 class="text-white" id="metric-total-count">{totalTickets}</h3>
+										<p class="text-white-50 mb-0" style="font-size: 0.8rem;">Casos Totales</p>
 									</div>
 									<div class="small-box-icon text-white-50">
 										<i class="ri-history-line"></i>
@@ -326,11 +327,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								</div>
 							</div>
 							<!-- Nuevas Solicitudes -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
-										<h3>{reviewTickets}</h3>
-										<p class="text-muted">Nuevas Solicitudes</p>
+										<h3 id="metric-review-count">{reviewTickets}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">Nuevas Solicitudes</p>
 									</div>
 									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
 										<i class="ri-mail-unread-line"></i>
@@ -338,11 +339,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								</div>
 							</div>
 							<!-- En Revisión -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
-										<h3>{inRevisionTickets}</h3>
-										<p class="text-muted">En Revisión</p>
+										<h3 id="metric-revision-count">{inRevisionTickets}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">En Revisión</p>
 									</div>
 									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
 										<i class="ri-file-search-line"></i>
@@ -350,11 +351,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								</div>
 							</div>
 							<!-- En Proceso -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
-										<h3>{inProgressTickets}</h3>
-										<p class="text-muted">En Proceso</p>
+										<h3 id="metric-progress-count">{inProgressTickets}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">En Proceso</p>
 									</div>
 									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
 										<i class="ri-loader-4-line"></i>
@@ -362,23 +363,35 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								</div>
 							</div>
 							<!-- Finalizadas -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
-										<h3>{doneTickets}</h3>
-										<p class="text-muted">Finalizadas</p>
+										<h3 id="metric-done-count">{doneTickets}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">Finalizadas</p>
 									</div>
 									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
 										<i class="ri-checkbox-circle-line"></i>
 									</div>
 								</div>
 							</div>
+							<!-- En Espera del Proveedor -->
+							<div class="col">
+								<div class="small-box bg-body border border-warning-subtle text-dark shadow-sm">
+									<div class="inner">
+										<h3 class="text-warning" id="metric-waiting-count">{supplierWaitingCount}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">En Espera</p>
+									</div>
+									<div class="small-box-icon text-warning animate-icon" style="opacity: 0.3;">
+										<i class="ri-time-line"></i>
+									</div>
+								</div>
+							</div>
 							<!-- Rechazadas -->
-							<div class="col-xl-2 col-md-4 col-sm-6">
+							<div class="col">
 								<div class="small-box bg-body border border-light-subtle text-dark shadow-sm">
 									<div class="inner">
-										<h3>{rejectedTickets}</h3>
-										<p class="text-muted">Rechazadas</p>
+										<h3 id="metric-rejected-count">{rejectedTickets}</h3>
+										<p class="text-muted mb-0" style="font-size: 0.8rem;">Rechazadas</p>
 									</div>
 									<div class="small-box-icon text-muted animate-icon" style="opacity: 0.2;">
 										<i class="ri-close-circle-line"></i>
@@ -518,11 +531,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 																				
 																				{column.status === 'finalizada' && (
 																					<div class="mt-2 d-flex flex-column gap-1">
-																						<button type="button" class="btn btn-xs btn-outline-success w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 upload-resolution-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
-																							<i class="ri-file-upload-line"></i> Subir Resolución (Nota/Venta)
-																						</button>
-																						<button type="button" class="btn btn-xs btn-outline-dark w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 archive-ticket-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
-																							<i class="ri-archive-line"></i> Archivar Ticket
+																						<button type="button" class="btn btn-xs btn-outline-warning text-dark w-100 py-1.5 rounded-pill d-flex align-items-center justify-content-center gap-1.5 put-in-waiting-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
+																							<i class="ri-time-line text-warning"></i> Poner el ticket en espera
 																						</button>
 																					</div>
 																				)}
@@ -552,7 +562,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						<!-- Section List Toggle Buttons -->
 						<div class="d-flex justify-content-center gap-3 flex-wrap my-4">
 							<button class="btn btn-outline-warning text-dark px-4 py-2.5 rounded-pill fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#supplierWaitingTicketsSection" aria-expanded="false" aria-controls="supplierWaitingTicketsSection" id="toggle-supplier-waiting-btn">
-								<i class="ri-time-line me-2 text-warning"></i> Ver Listado de Tickets en Espera del Proveedor ({supplierWaitingTickets.length})
+								<i class="ri-time-line me-2 text-warning"></i> Ver Listado de Tickets en Espera del Proveedor (<span id="waiting-section-count">{supplierWaitingTickets.length}</span>)
 							</button>
 							<button class="btn btn-outline-dark px-4 py-2.5 rounded-pill fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#archivedTicketsSection" aria-expanded="false" aria-controls="archivedTicketsSection" id="toggle-archived-btn">
 								<i class="ri-archive-line me-2"></i> Ver Listado de Tickets Archivados ({archivedTickets.length})
@@ -622,10 +632,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 															<td class="px-4 py-3 text-end">
 																<div class="d-flex gap-1 justify-content-end align-items-center" onclick="event.stopPropagation();">
 																	<button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 upload-resolution-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
-																		<i class="ri-file-upload-line me-1"></i>Subir Res. / Archivar
-																	</button>
-																	<button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 archive-ticket-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
-																		<i class="ri-archive-line me-1"></i>Archivar
+																		<i class="ri-file-upload-line me-1"></i>Subir Resolución y Archivar
 																	</button>
 																</div>
 															</td>
@@ -918,17 +925,17 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						<div class="alert alert-info border-0 shadow-sm rounded-3 p-3 mb-3 d-flex align-items-start gap-2">
 							<i class="ri-information-line fs-5 flex-shrink-0 text-info"></i>
 							<div class="small text-dark" style="font-size: 0.82rem; line-height: 1.45;">
-								Ingresa el número de transacción y/o el comentario de resolución del proveedor. El ticket permanecerá en el listado <strong>En Espera del Proveedor</strong> salvo que selecciones archivar.
+								Ingresa obligatoriamente el número de transacción/nota y la descripción de la resolución del proveedor. Al guardar, el ticket quedará resuelto y archivado.
 							</div>
 						</div>
 
 						<div class="mb-3">
-							<label for="resolution-transaction-number" class="form-label small fw-bold text-muted mb-1">Número de Transacción / Nota</label>
+							<label for="resolution-transaction-number" class="form-label small fw-bold text-muted mb-1">Número de Transacción / Nota <span class="text-danger">*</span></label>
 							<input type="text" class="form-control form-control-sm rounded-3" id="resolution-transaction-number" placeholder="Ej. NV-2026-8849 / TRX-10293" />
 						</div>
 
 						<div class="mb-3">
-							<label for="resolution-note" class="form-label small fw-bold text-muted mb-1">Nota o Descripción de la Resolución</label>
+							<label for="resolution-note" class="form-label small fw-bold text-muted mb-1">Nota o Descripción de la Resolución <span class="text-danger">*</span></label>
 							<textarea class="form-control form-control-sm rounded-3" id="resolution-note" rows="3" placeholder="Escribe detalles adicionales de la nota de venta, descuento o cierre..."></textarea>
 						</div>
 
@@ -936,10 +943,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					</div>
 					<div class="modal-footer border-top bg-light p-3 flex-wrap gap-2 justify-content-end">
 						<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
-						<button type="button" class="btn btn-sm btn-warning text-dark rounded-pill px-3 fw-semibold" id="submit-resolution-btn">
-							<i class="ri-save-line me-1"></i> Guardar (En Espera del Proveedor)
-						</button>
-						<button type="button" class="btn btn-sm btn-dark rounded-pill px-3 fw-semibold" id="submit-resolution-archive-btn">
+						<button type="button" class="btn btn-sm btn-dark rounded-pill px-4 fw-semibold" id="submit-resolution-archive-btn">
 							<i class="ri-archive-line me-1"></i> Guardar y Archivar Ticket
 						</button>
 					</div>
@@ -1826,7 +1830,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							
 							// Prevent open modal if click was on a button
 							const target = e.target as HTMLElement;
-							if (target.closest('.advance-ticket-btn') || target.closest('.reject-ticket-btn') || target.closest('.archive-ticket-btn') || target.closest('.upload-resolution-btn') || target.closest('.wa-ticket-btn') || target.closest('.print-ticket-btn')) return;
+							if (target.closest('.advance-ticket-btn') || target.closest('.reject-ticket-btn') || target.closest('.archive-ticket-btn') || target.closest('.upload-resolution-btn') || target.closest('.wa-ticket-btn') || target.closest('.print-ticket-btn') || target.closest('.put-in-waiting-btn')) return;
 							
 							const tNum = draggable.getAttribute('data-ticket-number');
 							// @ts-ignore
@@ -3002,24 +3006,15 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 				const resModalEl = document.getElementById('uploadResolutionModal');
 				const resTicketInput = document.getElementById('resolution-ticket-number') as HTMLInputElement;
 				const resTicketBadge = document.getElementById('resolution-ticket-badge');
-				const resDropZone = document.getElementById('resolution-drop-zone');
-				const resFileInput = document.getElementById('resolution-file-input') as HTMLInputElement;
-				const resFileLabel = document.getElementById('resolution-file-label');
-				const resFilePreview = document.getElementById('resolution-file-preview');
 				const resTxInput = document.getElementById('resolution-transaction-number') as HTMLInputElement;
 				const resNoteInput = document.getElementById('resolution-note') as HTMLTextAreaElement;
 				const resErrorEl = document.getElementById('resolution-error');
-				const resSubmitBtn = document.getElementById('submit-resolution-btn') as HTMLButtonElement;
 				const resSubmitArchiveBtn = document.getElementById('submit-resolution-archive-btn') as HTMLButtonElement;
 
 				function resetResolutionModal() {
 					if (resTxInput) resTxInput.value = '';
 					if (resNoteInput) resNoteInput.value = '';
 					if (resErrorEl) { resErrorEl.textContent = ''; resErrorEl.classList.add('d-none'); }
-					if (resSubmitBtn) {
-						resSubmitBtn.disabled = false;
-						resSubmitBtn.innerHTML = '<i class="ri-save-line me-1"></i> Guardar (En Espera del Proveedor)';
-					}
 					if (resSubmitArchiveBtn) {
 						resSubmitArchiveBtn.disabled = false;
 						resSubmitArchiveBtn.innerHTML = '<i class="ri-archive-line me-1"></i> Guardar y Archivar Ticket';
@@ -3040,15 +3035,168 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					});
 				});
 
+				// Listener para "Poner el ticket en espera" desde las tarjetas de Finalizadas (dinámico sin recargar página)
+				document.querySelectorAll('.put-in-waiting-btn').forEach(btn => {
+					btn.addEventListener('click', (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						const ticketNumber = btn.getAttribute('data-ticket-number');
+						if (!ticketNumber) return;
+
+						showConfirmModal(
+							'Poner Ticket en Espera',
+							`¿Estás seguro de que deseas poner el ticket #${ticketNumber} en espera del proveedor? El ticket se moverá al listado de espera y dejará de mostrarse en la columna de Finalizadas.`,
+							async () => {
+								try {
+									const res = await fetch('/api/tickets/update-status', {
+										method: 'POST',
+										headers: { 'content-type': 'application/json' },
+										body: JSON.stringify({
+											ticketNumber,
+											status: 'finalizada',
+											inSupplierWaiting: true,
+										}),
+									});
+									const data = await res.json();
+									if (!res.ok) throw new Error(data.error || 'Error al poner ticket en espera');
+
+									// DYNAMIC DOM UPDATE (SIN RECARGAR LA PÁGINA)
+									const cardEl = document.querySelector(`.draggable-ticket[data-ticket-number="${ticketNumber}"]`);
+									
+									// @ts-ignore
+									const ticketObj = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number === ticketNumber);
+									if (ticketObj) {
+										ticketObj.in_supplier_waiting = true;
+									}
+
+									const clientName = ticketObj?.customer_details?.name || 'Cliente';
+									const ci = ticketObj?.customer_details?.ci || '';
+									const serialNumber = ticketObj?.product_serial_number || '—';
+									const createdAtStr = ticketObj?.createdAtStr || '—';
+									const createdAtIso = ticketObj?.createdAt ? new Date(ticketObj.createdAt).toISOString() : '';
+
+									// 1. Quitar la tarjeta de la columna Finalizadas
+									if (cardEl) {
+										const finalLane = cardEl.closest('.lane-column');
+										cardEl.remove();
+										if (finalLane) {
+											const remaining = finalLane.querySelectorAll('.draggable-ticket').length;
+											const badge = finalLane.closest('.card')?.querySelector('.card-header .badge');
+											if (badge) badge.textContent = String(remaining);
+											if (remaining === 0) {
+												finalLane.innerHTML = `
+													<div class="empty-state text-muted text-center py-5 my-auto w-100">
+														<i class="ri-inbox-line fs-2 mb-2 d-block opacity-50"></i>
+														<span class="small d-block">Sin tickets en esta fase</span>
+													</div>`;
+											}
+										}
+									}
+
+									// 2. Actualizar contadores de las Tarjetas Métricas superiores
+									const doneMetric = document.getElementById('metric-done-count');
+									if (doneMetric) {
+										const currentDone = parseInt(doneMetric.textContent || '0', 10);
+										doneMetric.textContent = String(Math.max(0, currentDone - 1));
+									}
+
+									const waitingMetric = document.getElementById('metric-waiting-count');
+									if (waitingMetric) {
+										const currentWaiting = parseInt(waitingMetric.textContent || '0', 10);
+										waitingMetric.textContent = String(currentWaiting + 1);
+									}
+
+									const toggleBtnSpan = document.getElementById('waiting-section-count');
+									if (toggleBtnSpan) {
+										const currentSecCount = parseInt(toggleBtnSpan.textContent || '0', 10);
+										toggleBtnSpan.textContent = String(currentSecCount + 1);
+									}
+
+									// 3. Insertar la fila en la tabla de Tickets en Espera del Proveedor
+									const waitingTbody = document.querySelector('#supplierWaitingTicketsSection tbody');
+									if (waitingTbody) {
+										const emptyRow = waitingTbody.querySelector('.no-supplier-waiting-row');
+										if (emptyRow) emptyRow.remove();
+
+										const tr = document.createElement('tr');
+										tr.className = 'supplier-waiting-ticket-row table-warning';
+										tr.setAttribute('data-ticket-number', ticketNumber);
+										tr.setAttribute('data-client-name', clientName);
+										tr.setAttribute('data-ci', ci);
+										tr.setAttribute('data-serial-number', serialNumber);
+										tr.setAttribute('data-created-at', createdAtIso);
+										tr.style.cursor = 'pointer';
+
+										tr.innerHTML = `
+											<td class="px-4 py-3 fw-bold text-dark font-monospace">${ticketNumber}</td>
+											<td class="py-3 fw-semibold">${clientName}</td>
+											<td class="py-3 text-muted">${serialNumber}</td>
+											<td class="py-3 text-muted">${createdAtStr}</td>
+											<td class="px-4 py-3 text-end">
+												<div class="d-flex gap-1 justify-content-end align-items-center" onclick="event.stopPropagation();">
+													<button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 upload-resolution-btn" data-ticket-number="${ticketNumber}" style="font-size: 0.72rem;">
+														<i class="ri-file-upload-line me-1"></i>Subir Resolución y Archivar
+													</button>
+												</div>
+											</td>
+										`;
+
+										tr.addEventListener('click', (ev) => {
+											const target = ev.target as HTMLElement;
+											if (target.closest('.upload-resolution-btn')) return;
+											if (ticketObj) openTicketDetailsModal(ticketObj);
+										});
+
+										const uploadBtn = tr.querySelector('.upload-resolution-btn');
+										uploadBtn?.addEventListener('click', (ev) => {
+											ev.stopPropagation();
+											resetResolutionModal();
+											if (resTicketInput) resTicketInput.value = ticketNumber;
+											if (resTicketBadge) resTicketBadge.textContent = ticketNumber;
+											// @ts-ignore
+											const modal = window.bootstrap?.Modal?.getOrCreateInstance(resModalEl);
+											modal?.show();
+										});
+
+										waitingTbody.insertBefore(tr, waitingTbody.firstChild);
+									}
+
+									// 4. Abrir sección de espera y hacer scroll suave hacia la tabla
+									const collapseEl = document.getElementById('supplierWaitingTicketsSection');
+									if (collapseEl) {
+										// @ts-ignore
+										const bsCollapse = window.bootstrap?.Collapse?.getOrCreateInstance(collapseEl, { toggle: false });
+										bsCollapse?.show();
+									}
+
+									const sectionToggleBtn = document.getElementById('toggle-supplier-waiting-btn');
+									sectionToggleBtn?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+									setTimeout(() => {
+										const newRow = document.querySelector(`.supplier-waiting-ticket-row[data-ticket-number="${ticketNumber}"]`);
+										if (newRow) {
+											newRow.classList.remove('table-warning');
+										}
+									}, 2500);
+
+									showToast(`El ticket #${ticketNumber} fue movido a Espera del Proveedor.`, 'success');
+								} catch (err: any) {
+									showToast('Error: ' + err.message, 'danger');
+								}
+							}
+						);
+					});
+				});
+
 				async function processResolutionSave(shouldArchive: boolean, btnTriggered: HTMLButtonElement) {
 					if (!resTicketInput || !btnTriggered) return;
 					const ticketNumber = resTicketInput.value;
 					const transactionNumber = resTxInput?.value.trim() || '';
 					const note = resNoteInput?.value.trim() || '';
 
-					if (!transactionNumber && !note) {
+					if (!transactionNumber || !note) {
 						if (resErrorEl) {
-							resErrorEl.textContent = 'Ingresa el número de transacción o una nota / comentario de resolución.';
+							resErrorEl.textContent = 'Debes ingresar obligatoriamente tanto el número de transacción/nota como la descripción de la resolución.';
 							resErrorEl.classList.remove('d-none');
 						}
 						return;
@@ -3056,7 +3204,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 					try {
 						btnTriggered.disabled = true;
-						btnTriggered.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${shouldArchive ? 'Guardando y Archivando...' : 'Guardando...'}`;
+						btnTriggered.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Guardando y Archivando...`;
 						if (resErrorEl) resErrorEl.classList.add('d-none');
 
 						const res = await fetch('/api/tickets/upload-resolution', {
@@ -3066,16 +3214,14 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								ticketNumber,
 								transactionNumber,
 								note,
-								archive: shouldArchive,
+								archive: true,
 							}),
 						});
 
 						const data = await res.json();
 						if (!res.ok) throw new Error(data.error || 'Error al guardar resolución');
 
-						const msg = shouldArchive
-							? `Resolución guardada y ticket #${ticketNumber} archivado correctamente.`
-							: `Resolución guardada. El ticket #${ticketNumber} permanece en Espera del Proveedor.`;
+						const msg = `Resolución guardada y ticket #${ticketNumber} archivado correctamente.`;
 						showToast(msg, 'success');
 						// @ts-ignore
 						const modal = window.bootstrap?.Modal?.getInstance(resModalEl);
@@ -3090,7 +3236,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 					}
 				}
 
-				resSubmitBtn?.addEventListener('click', () => processResolutionSave(false, resSubmitBtn));
 				resSubmitArchiveBtn?.addEventListener('click', () => processResolutionSave(true, resSubmitArchiveBtn));
 
 				// Table row click handlers to open details modal

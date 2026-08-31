@@ -234,27 +234,34 @@ if (result) {
 								</ul>
 							)}
 
-							<!-- Formulario para adjuntar más evidencia -->
-							<div class="mt-4 pt-4 border-top">
-								<h6 class="fw-bold text-dark mb-1">¿Necesitas agregar algo?</h6>
-								<p class="text-muted small mb-3">Puedes escribir un comentario y adjuntar más fotos o videos a este mismo caso.</p>
-
-								<textarea class="form-control mb-2" id="client-note" rows="3" placeholder="Escribe aquí más detalles..."></textarea>
-
-								<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary mb-2" id="client-upload-zone" style="cursor: pointer;">
-									<i class="ri-folder-upload-line fs-3 text-muted d-block mb-1"></i>
-									<span class="small text-secondary fw-semibold upload-label">Adjuntar fotos o videos (máx. 5)</span>
-									<input type="file" id="client-file" class="d-none" accept="image/*,video/*" multiple />
+							<!-- Formulario para adjuntar más evidencia (bloqueado si el ticket fue finalizado / rechazado / archivado) -->
+							{(result.archived || result.status === 'finalizada' || result.status === 'rechazada') ? (
+								<div class="mt-4 pt-4 border-top text-center text-muted py-2">
+									<i class="ri-lock-2-line fs-3 d-block mb-1 text-secondary"></i>
+									<span class="small fw-semibold text-secondary">Este ticket se encuentra finalizado en atención. No admite nuevos mensajes o evidencias.</span>
 								</div>
-								<div id="client-preview" class="d-flex flex-column gap-2 mb-2"></div>
+							) : (
+								<div class="mt-4 pt-4 border-top">
+									<h6 class="fw-bold text-dark mb-1">¿Necesitas agregar algo?</h6>
+									<p class="text-muted small mb-3">Puedes escribir un comentario y adjuntar más fotos o videos a este mismo caso.</p>
 
-								<input type="hidden" id="client-ticket-number" value={result.ticket_number} />
-								<button type="button" class="btn btn-dark w-100 py-2 fw-bold rounded-pill" id="client-send-btn">
-									<i class="ri-send-plane-line me-1"></i> Enviar mensaje
-								</button>
-								<div class="alert alert-success d-none mt-3 py-2 small" id="client-ok"></div>
-								<div class="alert alert-danger d-none mt-3 py-2 small" id="client-err"></div>
-							</div>
+									<textarea class="form-control mb-2" id="client-note" rows="3" placeholder="Escribe aquí más detalles..."></textarea>
+
+									<div class="upload-zone border border-dashed rounded-3 p-3 text-center bg-body-tertiary mb-2" id="client-upload-zone" style="cursor: pointer;">
+										<i class="ri-folder-upload-line fs-3 text-muted d-block mb-1"></i>
+										<span class="small text-secondary fw-semibold upload-label">Adjuntar fotos o videos (máx. 5)</span>
+										<input type="file" id="client-file" class="d-none" accept="image/*,video/*" multiple />
+									</div>
+									<div id="client-preview" class="d-flex flex-column gap-2 mb-2"></div>
+
+									<input type="hidden" id="client-ticket-number" value={result.ticket_number} />
+									<button type="button" class="btn btn-dark w-100 py-2 fw-bold rounded-pill" id="client-send-btn">
+										<i class="ri-send-plane-line me-1"></i> Enviar mensaje
+									</button>
+									<div class="alert alert-success d-none mt-3 py-2 small" id="client-ok"></div>
+									<div class="alert alert-danger d-none mt-3 py-2 small" id="client-err"></div>
+								</div>
+							)}
 						</div>
 					)}
 

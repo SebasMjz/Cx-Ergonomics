@@ -55,6 +55,7 @@ export interface ITicket extends Document {
 	step_left_at_branch?: boolean;
 	step_sent_to_distributor?: boolean;
 	step_resolved?: boolean;
+	in_supplier_waiting?: boolean;
 	history: ITicketHistoryItem[];
 	archived: boolean;
 	archivedAt?: Date;
@@ -122,6 +123,7 @@ const TicketSchema = new Schema<ITicket>(
 		step_left_at_branch: { type: Boolean, default: false },
 		step_sent_to_distributor: { type: Boolean, default: false },
 		step_resolved: { type: Boolean, default: false },
+		in_supplier_waiting: { type: Boolean, default: false },
 		history: { type: [TicketHistorySchema], default: [] },
 		archived: { type: Boolean, default: false },
 		archivedAt: { type: Date },

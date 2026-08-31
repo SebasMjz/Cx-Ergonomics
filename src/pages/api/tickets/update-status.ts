@@ -61,30 +61,33 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		if (status === 'finalizada' || status === 'rechazada') {
-			const resolutionType = status === 'rechazada' ? 'rechazo' : String(body.resolutionType || '').trim();
-			const mainComment = String(body.mainComment || '').trim();
-			const supplierSolution = String(body.supplierSolution || '').trim();
-			const supplierTransaction = String(supplierTransactionNumber || '').trim();
+			const resolutionType = status === 'rechazada'
+				? 'rechazo'
+				: String(body.resolutionType || ticket.resolution_type || '').trim();
+			const mainComment = String(body.mainComment || ticket.resolution_main_comment || '').trim();
+			const supplierSolution = String(body.supplierSolution || ticket.supplier_solution || '').trim();
+			const supplierTransaction = String(supplierTransactionNumber || ticket.supplier_transaction_number || '').trim();
 
-			if (!resolutionLabels[resolutionType]) {
-				return new Response(
-					JSON.stringify({ error: 'Debes seleccionar un tipo de resolución válido (Rechazo, Descuento o Reponer).' }),
-					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
-				);
-			}
-			if (!mainComment) {
-				return new Response(
-					JSON.stringify({ error: 'El comentario o motivo de resolución es obligatorio.' }),
-					{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
-				);
+			// Si se está cambiando de estado o guardando resolución (y no es solo un clic en 'Poner en espera')
+			if (!body.inSupplierWaiting && (body.resolutionType || !ticket.resolution_type)) {
+				if (!resolutionLabels[resolutionType]) {
+					return new Response(
+						JSON.stringify({ error: 'Debes seleccionar un tipo de resolución válido (Rechazo, Descuento o Reponer).' }),
+						{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+					);
+				}
+				if (!mainComment) {
+					return new Response(
+						JSON.stringify({ error: 'El comentario o motivo de resolución es obligatorio.' }),
+						{ status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } }
+					);
+				}
 			}
 
-			resolutionUpdate = {
-				resolution_type: resolutionType,
-				resolution_main_comment: mainComment,
-				supplier_solution: supplierSolution,
-				supplier_transaction_number: supplierTransaction,
-			};
+			if (resolutionType) resolutionUpdate.resolution_type = resolutionType;
+			if (mainComment) resolutionUpdate.resolution_main_comment = mainComment;
+			if (supplierSolution) resolutionUpdate.supplier_solution = supplierSolution;
+			if (supplierTransaction) resolutionUpdate.supplier_transaction_number = supplierTransaction;
 		}
 
 		// Validación: No está permitido mover un ticket a un estado anterior de manera manual
@@ -107,9 +110,9 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		// Enforce mandatory steps if updating status to finalizada and not rejected
-		if (status === 'finalizada') {
-			const resolutionType = String(body.resolutionType || '').trim();
-			if (resolutionType !== 'rechazo') {
+		if (status === 'finalizada' && !body.inSupplierWaiting && !ticket.in_supplier_waiting) {
+			const resType = String(body.resolutionType || ticket.resolution_type || '').trim();
+			if (resType !== 'rechazo') {
 				if (!ticket.step_left_at_branch || !ticket.step_sent_to_distributor || !ticket.step_resolved) {
 					return new Response(
 						JSON.stringify({
@@ -161,10 +164,20 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
+		const setFields: Record<string, any> = { status, ...resolutionUpdate };
+		if (typeof body.inSupplierWaiting === 'boolean') {
+			setFields.in_supplier_waiting = body.inSupplierWaiting;
+		}
+
+		if (body.inSupplierWaiting === true) {
+			note = `${session.name} puso en espera del proveedor el ticket #${ticketNumber}`;
+			historyItems[0].note = note;
+		}
+
 		const updatedTicket = await TicketModel.findOneAndUpdate(
 			{ ticket_number: ticketNumber },
 			{
-				$set: { status, ...resolutionUpdate },
+				$set: setFields,
 				$push: { history: { $each: historyItems } },
 			},
 			{ new: true }

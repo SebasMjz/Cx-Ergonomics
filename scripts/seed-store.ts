@@ -20,6 +20,24 @@ function parseFecha(str: string): Date {
 	return new Date();
 }
 
+function getCity(item: any, ticketNumber: string): string {
+	const clientName = (item.Cliente || '').toUpperCase();
+	const upperId = ticketNumber.toUpperCase();
+
+	// 1. Si el cliente contiene SANTA CRUZ o el ID es RMA-S... es Santa Cruz
+	if (clientName.includes('SANTA CRUZ') || upperId.includes('SANTA') || upperId.startsWith('RMA-S')) {
+		return 'Santa Cruz';
+	}
+
+	// 2. Si el cliente contiene ANTEZANA o AMERICA es Cochabamba
+	if (clientName.includes('ANTEZANA') || clientName.includes('AMERICA')) {
+		return 'Cochabamba';
+	}
+
+	// 3. Fallback por defecto si no contiene marca de Santa Cruz
+	return 'Cochabamba';
+}
+
 export async function runSeedStore() {
 	await connectMongoose();
 
@@ -36,10 +54,17 @@ export async function runSeedStore() {
 	console.log(`Cargando ${datos.length} tickets de datos.json directamente a "En Espera del Proveedor"...`);
 
 	let count = 0;
+	let santaCruzCount = 0;
+	let cochabambaCount = 0;
+
 	for (const item of datos) {
 		const ticketNumber = item.ID || `RMA-${Date.now()}-${count}`;
 		const createdAt = parseFecha(item['Fecha ingreso']);
 		const isRejected = (item['Estado ERIKA'] || '').toUpperCase().includes('RECHAZADO');
+		const city = getCity(item, ticketNumber);
+
+		if (city === 'Santa Cruz') santaCruzCount++;
+		else cochabambaCount++;
 
 		const ticketData = {
 			ticket_number: ticketNumber,
@@ -47,7 +72,7 @@ export async function runSeedStore() {
 				name: item.Cliente || 'Cliente Cyrex',
 				ci: 'NIT-CYREX',
 				phone: item.Cel && item.Cel !== '-' ? String(item.Cel) : '70000000',
-				city: ticketNumber.includes('S') ? 'Santa Cruz' : 'La Paz',
+				city: city,
 			},
 			product_serial_number: item['Nro Serie'] || 'SN-HISTORICO',
 			product_name: item.Producto || 'Producto',
@@ -68,7 +93,7 @@ export async function runSeedStore() {
 			history: [
 				{
 					status: isRejected ? 'rechazada' : 'finalizada',
-					note: `Ticket importado del registro histórico (${item['Estado ERIKA'] || 'Histórico'}). Puesto directamente en espera del proveedor.`,
+					note: `Ticket importado del registro histórico (${item['Estado ERIKA'] || 'Histórico'}). Puesto directamente en espera del proveedor en la ciudad de ${city}.`,
 					updated_by_user_id: 'system',
 					author_name: 'Sistema Histórico',
 					visibility: 'internal',
@@ -88,7 +113,7 @@ export async function runSeedStore() {
 		count++;
 	}
 
-	console.log(`Se sembraron ${count} tickets históricos con éxito.`);
+	console.log(`Se sembraron ${count} tickets históricos con éxito (${cochabambaCount} en Cochabamba, ${santaCruzCount} en Santa Cruz).`);
 }
 
 if (process.argv[1] && (process.argv[1].endsWith('seed-store.ts') || process.argv[1].endsWith('seed-store.js'))) {

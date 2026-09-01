@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectMongoose } from '../src/lib/mongo';
-import { StoreModel } from '../src/lib/models/Store';
 import { TicketModel } from '../src/lib/models/Ticket';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,22 +23,7 @@ function parseFecha(str: string): Date {
 export async function runSeedStore() {
 	await connectMongoose();
 
-	// 1. Seed tienda base si no existe
-	const existingStore = await StoreModel.findOne({ client_code: 'TIENDA-C101' });
-	if (!existingStore) {
-		const store = await StoreModel.create({
-			client_code: 'TIENDA-C101',
-			name: 'Tienda Central Sopocachi',
-			ci: 'NIT-999238910',
-			phone: '70123456',
-			city: 'La Paz',
-		});
-		console.log('Tienda creada:', store.client_code);
-	} else {
-		console.log('La tienda TIENDA-C101 ya existe.');
-	}
-
-	// 2. Leer datos.json
+	// Leer datos.json
 	const datosPath = path.join(__dirname, 'datos.json');
 	if (!fs.existsSync(datosPath)) {
 		console.error('No se encontró el archivo datos.json en:', datosPath);
@@ -110,7 +94,7 @@ export async function runSeedStore() {
 if (process.argv[1] && (process.argv[1].endsWith('seed-store.ts') || process.argv[1].endsWith('seed-store.js'))) {
 	runSeedStore()
 		.then(() => {
-			console.log('Seed de tiendas y datos.json completado.');
+			console.log('Seed de datos.json completado.');
 			process.exit(0);
 		})
 		.catch((err) => {

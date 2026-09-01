@@ -7,7 +7,6 @@ import { DistributorRequestModel } from '../src/lib/models/DistributorRequest';
 import { PointOfSaleModel } from '../src/lib/models/PointOfSale';
 import { ProductModel } from '../src/lib/models/Product';
 import { WallpaperModel } from '../src/lib/models/Wallpaper';
-import { StoreModel } from '../src/lib/models/Store';
 import { TagModel } from '../src/lib/models/Tag';
 import { CategoryModel } from '../src/lib/models/Category';
 import { runSeedStore } from './seed-store';
@@ -23,7 +22,6 @@ async function main() {
 		['PointsOfSale', PointOfSaleModel],
 		['Products', ProductModel],
 		['Wallpapers', WallpaperModel],
-		['Stores', StoreModel],
 		['Tags', TagModel],
 		['Categories', CategoryModel],
 	];
@@ -37,9 +35,9 @@ async function main() {
 		}
 	}
 
-	console.log('[Preservación] Los usuarios, Banners y FAQs se conservaron intactos.');
+	console.log('[Preservación] Los Usuarios, Tiendas, Banners y FAQs se conservaron intactos.');
 
-	console.log('\n--- Resiembra de Tienda y Tickets de datos.json ---');
+	console.log('\n--- Resiembra de Tickets de datos.json ---');
 	await runSeedStore();
 
 	try {
@@ -49,7 +47,7 @@ async function main() {
 		/* ignore */
 	}
 
-	console.log('\nProceso de Limpieza y Resiembra finalizado con éxito.');
+	console.log('\nProceso de Limpieza y Resiembra de tickets finalizado con éxito.');
 	process.exit(0);
 }
 

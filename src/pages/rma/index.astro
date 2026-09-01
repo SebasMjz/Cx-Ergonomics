@@ -619,9 +619,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 															<td class="py-3 text-muted">{formatDate(new Date(ticket.createdAt))}</td>
 															<td class="px-4 py-3 text-end">
 																<div class="d-flex gap-1 justify-content-end align-items-center" onclick="event.stopPropagation();">
-																	<button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 view-details-btn me-1" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
-																		<i class="ri-eye-line me-1"></i>Ver Detalles
-																	</button>
 																	<button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 upload-resolution-btn" data-ticket-number={ticket.ticket_number} style="font-size: 0.72rem;">
 																		<i class="ri-file-upload-line me-1"></i>Subir Resolución y Archivar
 																	</button>
@@ -3125,9 +3122,6 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 											<td class="py-3 text-muted">${createdAtStr}</td>
 											<td class="px-4 py-3 text-end">
 												<div class="d-flex gap-1 justify-content-end align-items-center" onclick="event.stopPropagation();">
-													<button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2.5 py-1 view-details-btn me-1" data-ticket-number="${ticketNumber}" style="font-size: 0.72rem;">
-														<i class="ri-eye-line me-1"></i>Ver Detalles
-													</button>
 													<button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2.5 py-1 upload-resolution-btn" data-ticket-number="${ticketNumber}" style="font-size: 0.72rem;">
 														<i class="ri-file-upload-line me-1"></i>Subir Resolución y Archivar
 													</button>
@@ -3137,13 +3131,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 										tr.addEventListener('click', (ev) => {
 											const target = ev.target as HTMLElement;
-											if (target.closest('.upload-resolution-btn') || target.closest('.view-details-btn')) return;
-											if (ticketObj) openTicketDetailsModal(ticketObj);
-										});
-
-										const viewDetBtn = tr.querySelector('.view-details-btn');
-										viewDetBtn?.addEventListener('click', (ev) => {
-											ev.stopPropagation();
+											if (target.closest('.upload-resolution-btn')) return;
 											if (ticketObj) openTicketDetailsModal(ticketObj);
 										});
 
@@ -3238,23 +3226,11 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 
 				resSubmitArchiveBtn?.addEventListener('click', () => processResolutionSave(true, resSubmitArchiveBtn));
 
-				// Table row & view details click handlers to open details modal
-				document.querySelectorAll('.view-details-btn').forEach(btn => {
-					btn.addEventListener('click', (e) => {
-						e.stopPropagation();
-						const tNum = btn.getAttribute('data-ticket-number');
-						// @ts-ignore
-						const ticket = window.ALL_TICKETS.find(t => t.ticket_number === tNum);
-						if (ticket) {
-							openTicketDetailsModal(ticket);
-						}
-					});
-				});
-
+				// Table row click handlers to open details modal
 				document.querySelectorAll('.archived-ticket-row, .supplier-waiting-ticket-row, .archived-preview-item').forEach(row => {
 					row.addEventListener('click', (e) => {
 						const target = e.target as HTMLElement;
-						if (target.closest('.unarchive-ticket-btn') || target.closest('.upload-resolution-btn') || target.closest('.view-details-btn') || target.closest('.archive-ticket-btn')) return;
+						if (target.closest('.unarchive-ticket-btn') || target.closest('.upload-resolution-btn') || target.closest('.archive-ticket-btn')) return;
 
 						const tNum = row.getAttribute('data-ticket-number');
 						// @ts-ignore

@@ -79,7 +79,7 @@ const archivedTickets = (await TicketModel.find({ archived: true })
 	.sort({ updatedAt: -1 })
 	.lean()) as DashboardTicket[];
 
-const allTickets = [...activeTickets, ...archivedTickets];
+const allTickets = [...activeTickets, ...supplierWaitingTickets, ...archivedTickets];
 
 const users = await UserModel.find().lean();
 const userMap = users.reduce((acc, u) => {

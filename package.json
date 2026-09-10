@@ -14,6 +14,7 @@
     "server:prod": "node --import tsx/esm server/index.ts",
     "seed": "tsx scripts/seed.ts",
     "seed-store": "tsx scripts/seed-store.ts",
+    "script-2": "tsx scripts/script-2.ts",
     "clean-db": "tsx scripts/clean-db.ts",
     "clean-seed": "tsx scripts/clean-and-seed.ts",
     "check": "astro check",

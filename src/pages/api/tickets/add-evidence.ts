@@ -42,6 +42,16 @@ export const POST: APIRoute = async ({ request }) => {
 		currentEv.push(evidenceUrl);
 		ticket.evidence_video = currentEv.join(',');
 
+		ticket.history.push({
+			status: ticket.status,
+			note: `${session.name} adjuntó una nueva evidencia al ticket.`,
+			updated_by_user_id: session.sub,
+			author_name: session.name,
+			visibility: 'internal' as const,
+			attachments: [evidenceUrl],
+			updated_at: new Date(),
+		});
+
 		await ticket.save();
 
 		return new Response(

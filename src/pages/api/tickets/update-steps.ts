@@ -51,9 +51,21 @@ export const POST: APIRoute = async ({ request }) => {
 		if (step_sent_to_distributor !== undefined) updateData.step_sent_to_distributor = !!step_sent_to_distributor;
 		if (step_resolved !== undefined) updateData.step_resolved = !!step_resolved;
 
+		const historyItem = {
+			status: existingTicket.status,
+			note: `${session.name} actualizó los pasos de control del ticket.`,
+			updated_by_user_id: session.sub,
+			author_name: session.name,
+			visibility: 'internal' as const,
+			updated_at: new Date(),
+		};
+
 		const updatedTicket = await TicketModel.findOneAndUpdate(
 			{ ticket_number: ticketNumber },
-			{ $set: updateData },
+			{
+				$set: updateData,
+				$push: { history: historyItem }
+			},
 			{ new: true }
 		);
 

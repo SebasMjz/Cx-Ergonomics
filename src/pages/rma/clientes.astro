@@ -39,6 +39,7 @@ for (const t of tickets) {
 	let ticketLastTime = new Date(t.createdAt).getTime();
 	if (t.history && Array.isArray(t.history) && t.history.length > 0) {
 		for (const h of t.history) {
+			if (h && h.from_client) continue;
 			if (h && h.updated_at) {
 				const time = new Date(h.updated_at).getTime();
 				if (!isNaN(time) && time > ticketLastTime) {

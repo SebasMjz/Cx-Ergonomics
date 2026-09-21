@@ -221,6 +221,7 @@ function getTicketLastUpdateDate(t: any): Date {
 	let latestTime = 0;
 	if (t.history && Array.isArray(t.history) && t.history.length > 0) {
 		for (const h of t.history) {
+			if (h && h.from_client) continue;
 			if (h && h.updated_at) {
 				const time = new Date(h.updated_at).getTime();
 				if (!isNaN(time) && time > latestTime) {
@@ -3532,6 +3533,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 						let latestTime = 0;
 						if (t.history && Array.isArray(t.history) && t.history.length > 0) {
 							for (const h of t.history) {
+								if (h && h.from_client) continue;
 								if (h && h.updated_at) {
 									const time = new Date(h.updated_at).getTime();
 									if (!isNaN(time) && time > latestTime) {

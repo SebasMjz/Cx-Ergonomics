@@ -35,12 +35,31 @@ const groups = new Map<string, ClientGroup>();
 for (const t of tickets) {
 	const cd = t.customer_details || ({} as any);
 	const key = (cd.ci || cd.name || 'sin-id').toString().trim().toLowerCase();
+	
+	let ticketLastTime = new Date(t.createdAt).getTime();
+	if (t.history && Array.isArray(t.history) && t.history.length > 0) {
+		for (const h of t.history) {
+			if (h && h.updated_at) {
+				const time = new Date(h.updated_at).getTime();
+				if (!isNaN(time) && time > ticketLastTime) {
+					ticketLastTime = time;
+				}
+			}
+		}
+	}
+	if (t.archivedAt) {
+		const archTime = new Date(t.archivedAt).getTime();
+		if (!isNaN(archTime) && archTime > ticketLastTime) {
+			ticketLastTime = archTime;
+		}
+	}
+
 	if (!groups.has(key)) {
-		groups.set(key, { key, name: cd.name || 'Sin nombre', ci: cd.ci || '—', phone: cd.phone || '—', count: 0, last: t.createdAt, tickets: [] });
+		groups.set(key, { key, name: cd.name || 'Sin nombre', ci: cd.ci || '—', phone: cd.phone || '—', count: 0, last: new Date(ticketLastTime), tickets: [] });
 	}
 	const g = groups.get(key)!;
 	g.count++;
-	if (new Date(t.createdAt) > new Date(g.last)) g.last = t.createdAt;
+	if (ticketLastTime > new Date(g.last).getTime()) g.last = new Date(ticketLastTime);
 	g.tickets.push({
 		ticket_number: t.ticket_number,
 		status: statusLabel[t.status] || t.status,

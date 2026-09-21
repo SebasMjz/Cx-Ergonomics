@@ -216,16 +216,47 @@ function timeAgo(date: Date) {
 
 const monthLabel = now.toLocaleDateString('es-VE', { month: 'long', year: 'numeric' });
 
-const ticketsJson = JSON.stringify(allTickets.map(t => ({
-	...t,
-	createdAtStr: formatDate(new Date(t.createdAt)),
-	updatedAtStr: formatDate(new Date(t.updatedAt)),
-	archivedAtStr: t.archivedAt ? formatDate(new Date(t.archivedAt)) : (t.archived ? formatDate(new Date(t.updatedAt)) : ''),
-	history: t.history.map(h => ({
-		...h,
-		userName: h.updated_by_user_id ? (userMap[h.updated_by_user_id] || 'Cliente / Sistema') : 'Cliente / Sistema'
-	}))
-})));
+function getTicketLastUpdateDate(t: any): Date {
+	let latestTime = 0;
+	if (t.history && Array.isArray(t.history) && t.history.length > 0) {
+		for (const h of t.history) {
+			if (h && h.updated_at) {
+				const time = new Date(h.updated_at).getTime();
+				if (!isNaN(time) && time > latestTime) {
+					latestTime = time;
+				}
+			}
+		}
+	}
+	if (t.archivedAt) {
+		const archTime = new Date(t.archivedAt).getTime();
+		if (!isNaN(archTime) && archTime > latestTime) {
+			latestTime = archTime;
+		}
+	}
+	if (latestTime > 0) {
+		return new Date(latestTime);
+	}
+	if (t.createdAt) {
+		const createdTime = new Date(t.createdAt).getTime();
+		if (!isNaN(createdTime)) return new Date(createdTime);
+	}
+	return new Date();
+}
+
+const ticketsJson = JSON.stringify(allTickets.map(t => {
+	const lastUpdateDate = getTicketLastUpdateDate(t);
+	return {
+		...t,
+		createdAtStr: formatDate(new Date(t.createdAt)),
+		updatedAtStr: formatDate(lastUpdateDate),
+		archivedAtStr: t.archivedAt ? formatDate(new Date(t.archivedAt)) : (t.archived ? formatDate(lastUpdateDate) : ''),
+		history: (t.history || []).map((h: any) => ({
+			...h,
+			userName: h.updated_by_user_id ? (userMap[h.updated_by_user_id] || 'Cliente / Sistema') : 'Cliente / Sistema'
+		}))
+	};
+}));
 ---
 
 <html lang="es" data-bs-theme="light" data-theme-fixed="light">
@@ -2036,8 +2067,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 							rechazada: 3,
 						};
 
-						const originalIndex = statusOrderMap[originalStatus] ?? 0;
-						const newIndex = statusOrderMap[newStatus] ?? 0;
+						const originalIndex = (originalStatus && statusOrderMap[originalStatus as keyof typeof statusOrderMap]) ?? 0;
+						const newIndex = (newStatus && statusOrderMap[newStatus as keyof typeof statusOrderMap]) ?? 0;
 
 						if (newStatus !== 'rechazada' && newIndex < originalIndex) {
 							showToast('No está permitido mover un ticket a un estado anterior de manera manual.', 'danger');
@@ -3484,9 +3515,51 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 						'reponer': 'Reponer'
 					};
 
+					function formatClientDate(d: any): string {
+						if (!d) return '—';
+						const dateObj = new Date(d);
+						if (isNaN(dateObj.getTime())) return String(d);
+						return new Intl.DateTimeFormat('es-VE', {
+							day: '2-digit',
+							month: 'short',
+							year: 'numeric',
+						}).format(dateObj);
+					}
+
+					function getClientTicketLastUpdate(t: any): string {
+						if (t.updatedAtStr) return t.updatedAtStr;
+						let latestTime = 0;
+						if (t.history && Array.isArray(t.history) && t.history.length > 0) {
+							for (const h of t.history) {
+								if (h && h.updated_at) {
+									const time = new Date(h.updated_at).getTime();
+									if (!isNaN(time) && time > latestTime) {
+										latestTime = time;
+									}
+								}
+							}
+						}
+						if (t.archivedAt) {
+							const archTime = new Date(t.archivedAt).getTime();
+							if (!isNaN(archTime) && archTime > latestTime) {
+								latestTime = archTime;
+							}
+						}
+						if (latestTime > 0) {
+							return formatClientDate(latestTime);
+						}
+						if (t.createdAt) {
+							return formatClientDate(t.createdAt);
+						}
+						return '—';
+					}
+
 					let tableRows = '';
 					tickets.forEach((t: any) => {
 						const details = t.customer_details || {};
+						const lastUpdateFormatted = getClientTicketLastUpdate(t);
+						const creationFormatted = t.createdAtStr || (t.createdAt ? formatClientDate(t.createdAt) : '—');
+						const archivedFormatted = t.archivedAtStr || (t.archived ? (t.archivedAt ? formatClientDate(t.archivedAt) : lastUpdateFormatted) : '—');
 						
 						// Process receipt image/pdf
 						let receiptHtml = '—';
@@ -3540,9 +3613,9 @@ const ticketsJson = JSON.stringify(allTickets.map(t => ({
 								<td>${receiptHtml}</td>
 								<td>${snHtml}</td>
 								<td>${evidenceHtml}</td>
-								<td>${t.createdAtStr || t.createdAt}</td>
-								<td>${t.updatedAtStr || t.updatedAt}</td>
-								<td>${t.archivedAtStr || (t.archived ? (t.updatedAtStr || t.updatedAt) : '—')}</td>
+								<td>${creationFormatted}</td>
+								<td>${lastUpdateFormatted}</td>
+								<td>${archivedFormatted}</td>
 							</tr>
 						`;
 					});

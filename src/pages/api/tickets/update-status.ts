@@ -190,7 +190,7 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// Update order values if orderedNumbers is provided
+		// Update order values if orderedNumbers is provided without modifying updatedAt on other tickets
 		if (Array.isArray(orderedNumbers) && orderedNumbers.length > 0) {
 			const bulkOps = orderedNumbers.map((num, index) => ({
 				updateOne: {
@@ -198,7 +198,7 @@ export const POST: APIRoute = async ({ request }) => {
 					update: { $set: { order: index } }
 				}
 			}));
-			await TicketModel.bulkWrite(bulkOps);
+			await TicketModel.collection.bulkWrite(bulkOps);
 		}
 
 		return new Response(

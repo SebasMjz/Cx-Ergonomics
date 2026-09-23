@@ -2,6 +2,11 @@
 // Public Ticket Creation Page
 import { connectMongoose } from '../../lib/mongo';
 import { getSiteSettings } from '../../lib/models/SiteSettings';
+import { readCookieValue, verifyAuthToken } from '../../lib/auth/jwt';
+
+const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
+const session = authToken ? verifyAuthToken(authToken) : null;
+const isStaff = !!session;
 
 await connectMongoose();
 const settings = await getSiteSettings();
@@ -32,7 +37,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 			rel="stylesheet"
 		/>
 	</head>
-	<body class="bg-white py-0">
+	<body class="bg-white py-0" data-is-staff={isStaff ? 'true' : 'false'}>
 		<!-- Encabezado neutro (white-label): sin logo, solo el título y una franja de color -->
 		<header class="cx-topbar w-100 bg-body py-3 px-4 d-flex justify-content-center align-items-center border-bottom shadow-sm position-relative" style="z-index: 2; border-bottom: 3px solid #000000 !important;">
 			<span class="fw-bold text-dark" style="letter-spacing: 0.02em;">Formulario de RMA</span>
@@ -154,6 +159,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 								<div class="col-12 col-sm-6">
 									<label for="customerCi" class="form-label text-muted small fw-bold">Cédula o Identificación</label>
 									<input type="text" class="form-control" id="customerCi" required placeholder="Ej. V-12345678" />
+									<div id="ci-lookup-hint" class="form-text small text-success d-none mt-1" style="font-size: 0.75rem;"></div>
 								</div>
 								
 								<div class="col-12 col-sm-6">
@@ -532,6 +538,61 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 
 		<script>
 			document.addEventListener('DOMContentLoaded', () => {
+				// ---- lookup staff customer CI autocomplete ----
+				const isStaffUser = document.body.getAttribute('data-is-staff') === 'true';
+				const customerCiInput = document.getElementById('customerCi') as HTMLInputElement | null;
+				const customerNameInput = document.getElementById('customerName') as HTMLInputElement | null;
+				const customerPhoneInput = document.getElementById('customerPhone') as HTMLInputElement | null;
+				const ciLookupHint = document.getElementById('ci-lookup-hint');
+
+				if (isStaffUser && customerCiInput) {
+					let lookupTimeout: any;
+					const doLookup = async () => {
+						const ciVal = customerCiInput.value.trim();
+						if (ciVal.length < 3) {
+							if (ciLookupHint) ciLookupHint.classList.add('d-none');
+							return;
+						}
+
+						try {
+							const res = await fetch(`/api/customers/lookup?ci=${encodeURIComponent(ciVal)}`);
+							if (!res.ok) return;
+							const data = await res.json();
+							if (data.exists && data.customer) {
+								if (customerNameInput && (!customerNameInput.value.trim() || customerNameInput.dataset.autofilled === 'true')) {
+									customerNameInput.value = data.customer.name;
+									customerNameInput.dataset.autofilled = 'true';
+								}
+								if (customerPhoneInput && (!customerPhoneInput.value.trim() || customerPhoneInput.dataset.autofilled === 'true')) {
+									customerPhoneInput.value = data.customer.phone;
+									customerPhoneInput.dataset.autofilled = 'true';
+								}
+								if (ciLookupHint) {
+									ciLookupHint.innerHTML = `<i class="ri-checkbox-circle-line me-1"></i>Cliente registrado: <strong>${data.customer.name}</strong> (Nombre y teléfono autocompletados)`;
+									ciLookupHint.classList.remove('d-none');
+								}
+							} else {
+								if (ciLookupHint) ciLookupHint.classList.add('d-none');
+							}
+						} catch (e) {
+							// Ignorar error silenciosamente
+						}
+					};
+
+					customerCiInput.addEventListener('blur', doLookup);
+					customerCiInput.addEventListener('input', () => {
+						clearTimeout(lookupTimeout);
+						lookupTimeout = setTimeout(doLookup, 600);
+					});
+
+					customerNameInput?.addEventListener('input', () => {
+						if (customerNameInput) delete customerNameInput.dataset.autofilled;
+					});
+					customerPhoneInput?.addEventListener('input', () => {
+						if (customerPhoneInput) delete customerPhoneInput.dataset.autofilled;
+					});
+				}
+
 				// ---- lookup store client code ----
 				const toggleStoreBtn = document.getElementById('toggle-store-code-btn');
 				const storeContainer = document.getElementById('store-code-container');

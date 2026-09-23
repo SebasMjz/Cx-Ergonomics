@@ -16,9 +16,10 @@ type ClientGroup = {
 	name: string;
 	ci: string;
 	phone: string;
+	firstCreatedAt: number;
 	count: number;
 	last: Date;
-	tickets: Array<{ ticket_number: string; status: string; issue: string; serial: string; date: string }>;
+	tickets: Array<{ ticket_number: string; status: string; issue: string; serial: string; customerName: string; date: string }>;
 };
 
 const statusLabel: Record<string, string> = {
@@ -35,8 +36,9 @@ const groups = new Map<string, ClientGroup>();
 for (const t of tickets) {
 	const cd = t.customer_details || ({} as any);
 	const key = (cd.ci || cd.name || 'sin-id').toString().trim().toLowerCase();
+	const ticketCreatedAtTime = new Date(t.createdAt).getTime();
 	
-	let ticketLastTime = new Date(t.createdAt).getTime();
+	let ticketLastTime = ticketCreatedAtTime;
 	if (t.history && Array.isArray(t.history) && t.history.length > 0) {
 		for (const h of t.history) {
 			if (h && h.from_client) continue;
@@ -56,16 +58,35 @@ for (const t of tickets) {
 	}
 
 	if (!groups.has(key)) {
-		groups.set(key, { key, name: cd.name || 'Sin nombre', ci: cd.ci || '—', phone: cd.phone || '—', count: 0, last: new Date(ticketLastTime), tickets: [] });
+		groups.set(key, { 
+			key, 
+			name: cd.name || 'Sin nombre', 
+			ci: cd.ci || '—', 
+			phone: cd.phone || '—', 
+			firstCreatedAt: ticketCreatedAtTime,
+			count: 0, 
+			last: new Date(ticketLastTime), 
+			tickets: [] 
+		});
 	}
 	const g = groups.get(key)!;
 	g.count++;
 	if (ticketLastTime > new Date(g.last).getTime()) g.last = new Date(ticketLastTime);
+
+	// Mantener siempre el primer nombre y datos del ticket original (el más antiguo registrado)
+	if (ticketCreatedAtTime <= g.firstCreatedAt) {
+		g.firstCreatedAt = ticketCreatedAtTime;
+		if (cd.name) g.name = cd.name;
+		if (cd.phone) g.phone = cd.phone;
+		if (cd.ci) g.ci = cd.ci;
+	}
+
 	g.tickets.push({
 		ticket_number: t.ticket_number,
 		status: statusLabel[t.status] || t.status,
 		issue: t.issue_description,
 		serial: t.product_serial_number,
+		customerName: cd.name || '',
 		date: fmt(t.createdAt),
 	});
 }
@@ -179,7 +200,10 @@ const clientsData = JSON.stringify(clients);
 									<span class="fw-bold font-monospace">${esc(t.ticket_number)} <i class="ri-external-link-line ms-1 small text-muted"></i></span>
 									<span class="badge ${statusClass(t.status)}">${esc(t.status)}</span>
 								</div>
-								<div class="text-muted small mb-1"><i class="ri-barcode-line me-1"></i>S/N: ${esc(t.serial)} · <i class="ri-calendar-event-line ms-1 me-1"></i>${esc(t.date)}</div>
+								<div class="text-muted small mb-1">
+									<i class="ri-barcode-line me-1"></i>S/N: ${esc(t.serial)} · <i class="ri-calendar-event-line ms-1 me-1"></i>${esc(t.date)}
+									${t.customerName && t.customerName.toLowerCase().trim() !== c.name.toLowerCase().trim() ? `<span class="badge bg-secondary-subtle text-secondary ms-2" style="font-size:0.7rem;"><i class="ri-user-line me-1"></i>Solicitante: ${esc(t.customerName)}</span>` : ''}
+								</div>
 								<div class="small">${esc(t.issue)}</div>
 							</a>
 						</li>`).join('');

@@ -135,33 +135,6 @@ const TicketSchema = new Schema<ITicket>(
 	}
 );
 
-TicketSchema.pre('save', async function enforceSecondaryIdentity(next) {
-	if (!this.isNew) {
-		return next();
-	}
-
-	try {
-		const Ticket = this.constructor as Model<ITicket>;
-		const existing = await Ticket.findOne({
-			'customer_details.ci': this.customer_details.ci,
-		}).lean();
-
-		if (existing) {
-			const existingName = (existing.customer_details.name || '').trim().toLowerCase();
-			const incomingName = (this.customer_details.name || '').trim().toLowerCase();
-
-			if (existingName && incomingName && existingName !== incomingName) {
-				return next(
-					new Error('Customer CI already exists with a different name. Please review.')
-				);
-			}
-		}
-
-		return next();
-	} catch (error) {
-		return next(error as Error);
-	}
-});
-
 export const TicketModel: Model<ITicket> =
 	(mongoose.models.Ticket as Model<ITicket>) || mongoose.model<ITicket>('Ticket', TicketSchema);
+

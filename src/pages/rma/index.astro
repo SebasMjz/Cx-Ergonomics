@@ -309,10 +309,10 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 						</span>
 
 						<!-- Search box -->
-						<form class="d-none d-md-flex align-items-center ms-3" style="max-width: 280px;" onsubmit="event.preventDefault();">
-							<div class="input-group input-group-sm border border-secondary rounded-pill overflow-hidden bg-body bg-opacity-10">
-								<span class="input-group-text border-0 bg-transparent text-white-50"><i class="ri-search-line"></i></span>
-								<input type="text" id="global-search-input" class="form-control border-0 shadow-none ps-0 text-white bg-transparent" placeholder="Buscar ticket activo..." aria-label="Buscar ticket" />
+						<form class="d-none d-md-flex align-items-center ms-3" style="min-width: 300px; max-width: 420px;" onsubmit="event.preventDefault();">
+							<div class="input-group input-group-sm rounded-pill overflow-hidden bg-white shadow-sm w-100 border border-secondary-subtle">
+								<span class="input-group-text border-0 bg-white text-secondary ps-3 pe-2"><i class="ri-search-line"></i></span>
+								<input type="text" id="global-search-input" class="form-control border-0 shadow-none ps-0 text-dark bg-white" placeholder="Buscar ticket, cliente, C.I. o S/N..." aria-label="Buscar ticket" style="font-size: 0.82rem;" />
 							</div>
 						</form>
 					</div>
@@ -460,6 +460,10 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 																		class="card mb-2.5 draggable-ticket shadow-sm" 
 																		draggable="true" 
 																		data-ticket-number={ticket.ticket_number}
+																		data-serial-number={ticket.product_serial_number || ''}
+																		data-customer-ci={ticket.customer_details?.ci || ''}
+																		data-customer-name={ticket.customer_details?.name || ''}
+																		data-product-name={ticket.product_name || ''}
 																		data-status-type={column.status}
 																		style="cursor: grab;"
 																	>
@@ -3893,7 +3897,7 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 					if (t) openTicketDetailsModal(t);
 				}
 
-				// Live search on active tickets (Kanban board only) - Búsqueda por Ticket, Cliente, Código, CI y SN
+				// Live search on active tickets (Kanban board only) - Búsqueda por Ticket, Cliente, Código, CI, S/N y Producto
 				const globalSearchInput = document.getElementById('global-search-input');
 				globalSearchInput?.addEventListener('input', (e) => {
 					const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
@@ -3901,16 +3905,34 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 					// Filter cards
 					const cards = document.querySelectorAll('.draggable-ticket');
 					cards.forEach(card => {
-						const ticketNum = card.getAttribute('data-ticket-number')?.toLowerCase() || '';
-						const clientName = card.querySelector('h4')?.textContent?.toLowerCase() || '';
+						const ticketNum = (card.getAttribute('data-ticket-number') || '').toLowerCase();
+						const cardSn = (card.getAttribute('data-serial-number') || '').toLowerCase();
+						const cardCi = (card.getAttribute('data-customer-ci') || '').toLowerCase();
+						const cardCustName = (card.getAttribute('data-customer-name') || '').toLowerCase();
+						const cardProd = (card.getAttribute('data-product-name') || '').toLowerCase();
+						const clientName = (card.querySelector('h4')?.textContent || '').toLowerCase();
 						
-						// Search match with window.ALL_TICKETS for CI and S/N
+						// Also match with window.ALL_TICKETS for extra data
 						// @ts-ignore
-						const ticket = (window.ALL_TICKETS || []).find((t: any) => t.ticket_number.toLowerCase() === ticketNum);
-						const ci = ticket?.customer_details?.ci?.toLowerCase() || '';
-						const sn = ticket?.product_serial_number?.toLowerCase() || '';
+						const ticket = (window.ALL_TICKETS || []).find((t: any) => (t.ticket_number || '').toLowerCase() === ticketNum);
+						const ci = (ticket?.customer_details?.ci || '').toLowerCase();
+						const sn = (ticket?.product_serial_number || '').toLowerCase();
+						const brand = (ticket?.product_brand || '').toLowerCase();
+						const prodName = (ticket?.product_name || '').toLowerCase();
 
-						if (ticketNum.includes(query) || clientName.includes(query) || ci.includes(query) || sn.includes(query)) {
+						const match = !query || 
+							ticketNum.includes(query) || 
+							cardSn.includes(query) || 
+							sn.includes(query) || 
+							cardCi.includes(query) || 
+							ci.includes(query) || 
+							cardCustName.includes(query) || 
+							clientName.includes(query) || 
+							cardProd.includes(query) || 
+							prodName.includes(query) || 
+							brand.includes(query);
+
+						if (match) {
 							(card as HTMLElement).style.setProperty('display', '', 'important');
 						} else {
 							(card as HTMLElement).style.setProperty('display', 'none', 'important');

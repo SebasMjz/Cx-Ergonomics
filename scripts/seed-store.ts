@@ -24,24 +24,30 @@ function getCity(item: any, ticketNumber: string): string {
 	const clientName = (item.Cliente || '').toUpperCase();
 	const upperId = ticketNumber.toUpperCase();
 
-	// 1. Si el cliente contiene SANTA CRUZ o el ID es RMA-S... es Santa Cruz
-	if (clientName.includes('SANTA CRUZ') || upperId.includes('SANTA') || upperId.startsWith('RMA-S')) {
+	if (
+		clientName.includes('SANTA CRUZ') ||
+		clientName.includes('SCZ') ||
+		clientName.includes('STC') ||
+		upperId.includes('SANTA') ||
+		upperId.startsWith('RMA-S')
+	) {
 		return 'Santa Cruz';
 	}
 
-	// 2. Si el cliente contiene ANTEZANA o AMERICA es Cochabamba
-	if (clientName.includes('ANTEZANA') || clientName.includes('AMERICA')) {
+	if (clientName.includes('SUCRE')) {
+		return 'Sucre';
+	}
+
+	if (clientName.includes('ANTEZANA') || clientName.includes('AMERICA') || clientName.includes('CBBA')) {
 		return 'Cochabamba';
 	}
 
-	// 3. Fallback por defecto si no contiene marca de Santa Cruz
 	return 'Cochabamba';
 }
 
 export async function runSeedStore() {
 	await connectMongoose();
 
-	// Leer datos.json
 	const datosPath = path.join(__dirname, 'datos.json');
 	if (!fs.existsSync(datosPath)) {
 		console.error('No se encontró el archivo datos.json en:', datosPath);
@@ -56,6 +62,7 @@ export async function runSeedStore() {
 	let count = 0;
 	let santaCruzCount = 0;
 	let cochabambaCount = 0;
+	let sucreCount = 0;
 
 	for (const item of datos) {
 		const ticketNumber = item.ID || `RMA-${Date.now()}-${count}`;
@@ -64,7 +71,10 @@ export async function runSeedStore() {
 		const city = getCity(item, ticketNumber);
 
 		if (city === 'Santa Cruz') santaCruzCount++;
+		else if (city === 'Sucre') sucreCount++;
 		else cochabambaCount++;
+
+		const video = item['LINK DE VIDEO'] && item['LINK DE VIDEO'] !== 'VIDEO' && item['LINK DE VIDEO'] !== 'Video' ? item['LINK DE VIDEO'] : '';
 
 		const ticketData = {
 			ticket_number: ticketNumber,
@@ -74,26 +84,27 @@ export async function runSeedStore() {
 				phone: item.Cel && item.Cel !== '-' ? String(item.Cel) : '70000000',
 				city: city,
 			},
-			product_serial_number: item['Nro Serie'] || 'SN-HISTORICO',
+			product_serial_number: item['Nro Serie'] ? String(item['Nro Serie']) : 'SN-HISTORICO',
 			product_name: item.Producto || 'Producto',
 			product_brand: item.Marca || 'AJAZZ',
 			sales_receipt_image: '/img/logos/logo cx.png',
 			issue_description: item.Falla || 'Falla reportada en registro histórico',
-			evidence_video: '',
+			evidence_video: video,
 			status: isRejected ? 'rechazada' : 'finalizada',
-			in_supplier_waiting: !isRejected, // Van directamente al apartado de Espera si no están rechazados
+			in_supplier_waiting: !isRejected,
 			step_left_at_branch: true,
 			step_sent_to_distributor: true,
 			step_resolved: true,
 			resolution_type: isRejected ? 'rechazo' : undefined,
 			supplier_transaction_number: item['Nro transaccion NEXTAR'] ? String(item['Nro transaccion NEXTAR']) : '',
 			supplier_solution: item['SOLUCION CLIENTE CX'] || item.Resultado || '',
+			client_solution: item['SOLUCION CLIENTE CX'] || '',
 			resolution_main_comment: item.Comentario || item.Falla || '',
 			archived: false,
 			history: [
 				{
 					status: isRejected ? 'rechazada' : 'finalizada',
-					note: `Ticket importado del registro histórico (${item['Estado ERIKA'] || 'Histórico'}). Puesto directamente en espera del proveedor en la ciudad de ${city}.`,
+					note: `Ticket importado del registro histórico (${item['Estado ERIKA'] || 'Histórico'}). Recibe: ${item.RECIBE || 'N/A'}. Solución: ${item['SOLUCION CLIENTE CX'] || item.Resultado || 'N/A'}. Puesto en espera del proveedor en ${city}.`,
 					updated_by_user_id: 'system',
 					author_name: 'Sistema Histórico',
 					visibility: 'internal',
@@ -113,7 +124,10 @@ export async function runSeedStore() {
 		count++;
 	}
 
-	console.log(`Se sembraron ${count} tickets históricos con éxito (${cochabambaCount} en Cochabamba, ${santaCruzCount} en Santa Cruz).`);
+	console.log(`Se sembraron ${count} tickets históricos con éxito:`);
+	console.log(`- Cochabamba: ${cochabambaCount}`);
+	console.log(`- Santa Cruz: ${santaCruzCount}`);
+	console.log(`- Sucre: ${sucreCount}`);
 }
 
 if (process.argv[1] && (process.argv[1].endsWith('seed-store.ts') || process.argv[1].endsWith('seed-store.js'))) {

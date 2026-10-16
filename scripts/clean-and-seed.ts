@@ -35,6 +35,12 @@ async function main() {
 		}
 	}
 
+	console.log('\n[Preservación Garantizada]:');
+	console.log('✓ Usuarios: NO se tocan (se conservan todas las cuentas y contraseñas).');
+	console.log('✓ Tiendas: NO se tocan.');
+	console.log('✓ Banners: NO se tocan (se conservan los banners existentes).');
+	console.log('✓ FAQs: NO se tocan (se conservan todas las preguntas frecuentes).');
+
 	console.log('\n--- Resiembra de Tickets de datos.json ---');
 	await runSeedStore();
 

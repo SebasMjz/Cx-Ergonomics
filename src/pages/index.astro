@@ -77,6 +77,8 @@ function youtubeEmbed(urlOrId: string) {
 		fs: '0',
 		iv_load_policy: '3',
 		showinfo: '0',
+		cc_load_policy: '0',
+		cc_lang_pref: 'none',
 	});
 	return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
 }
@@ -278,9 +280,10 @@ function youtubeEmbed(urlOrId: string) {
 				height: 56.25vw;        /* 16:9 from width */
 				min-height: 100%;
 				min-width: 177.78vh;    /* 16:9 from height */
-				transform: translate(-50%, -50%);
+				transform: translate(-50%, -50%) scale(1.3);
 				border: 0;
 				pointer-events: none;
+				user-select: none;
 				object-fit: cover;
 			}
 			.hero-overlay {

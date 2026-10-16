@@ -219,8 +219,15 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 							</select>
 						</div>
 						<div class="col-12 col-md-6 bn-field bn-youtube">
-							<label class="form-label small fw-bold text-muted">ID del video de YouTube</label>
-							<input type="text" class="form-control" id="bn-video-id" placeholder="Ej. 2ZhY7LfpkqQ" />
+							<label class="form-label small fw-bold text-muted">ID o Enlace de YouTube</label>
+							<input type="text" class="form-control" id="bn-video-id" placeholder="Ej. nBMEoWlOjw0 o https://youtube.com/watch?v=..." />
+							<!-- Vista previa de YouTube -->
+							<div id="bn-yt-preview" class="mt-2 rounded overflow-hidden border d-none position-relative" style="height: 140px; background: #000;">
+								<img id="bn-yt-thumb" class="w-100 h-100 object-fit-cover" alt="Vista previa YouTube" />
+								<div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-75 text-white small px-2 py-1">
+									<i class="ri-youtube-fill text-danger me-1"></i> Vista previa de YouTube
+								</div>
+							</div>
 						</div>
 						<div class="col-12 bn-field bn-file">
 							<label class="form-label small fw-bold text-muted">Archivo de Video (.mp4, .webm)</label>
@@ -230,9 +237,18 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 									<i class="ri-upload-cloud-2-line me-1"></i> Subir video
 								</button>
 							</div>
-							<div class="form-text small text-muted">El video se guardará en la carpeta persistente de banners (/app/uploads/catalogo/banners).</div>
-							<input type="text" class="form-control mt-2" id="bn-video-url" placeholder="URL o ruta del video (/uploads/catalogo/banners/...)" />
 							<div id="bn-video-upload-status" class="small mt-1 d-none"></div>
+							<!-- Previsualización del video -->
+							<div id="bn-video-preview-wrap" class="mt-2 rounded overflow-hidden border d-none bg-black text-center p-2">
+								<video id="bn-video-preview" controls class="w-100 rounded" style="max-height: 190px;"></video>
+							</div>
+							<input type="hidden" id="bn-video-url" />
+							<div class="mt-1">
+								<a href="javascript:void(0)" class="small text-muted text-decoration-none" id="toggle-manual-video-url"><i class="ri-link me-1"></i>Ingresar URL externa (opcional)</a>
+								<div id="manual-video-url-container" class="d-none mt-1">
+									<input type="text" class="form-control form-control-sm" id="bn-video-url-manual" placeholder="https://... o /uploads/catalogo/banners/..." />
+								</div>
+							</div>
 						</div>
 						<div class="col-12 bn-field bn-image">
 							<label class="form-label small fw-bold text-muted">Archivo de Imagen (.png, .jpg, .webp)</label>
@@ -242,20 +258,33 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 									<i class="ri-upload-cloud-2-line me-1"></i> Subir imagen
 								</button>
 							</div>
-							<div class="form-text small text-muted">La imagen se guardará en la carpeta persistente de banners.</div>
-							<input type="text" class="form-control mt-2" id="bn-image-url" placeholder="URL o ruta de la imagen (/uploads/catalogo/banners/...)" />
 							<div id="bn-image-upload-status" class="small mt-1 d-none"></div>
+							<!-- Previsualización de la imagen -->
+							<div id="bn-image-preview-wrap" class="mt-2 rounded overflow-hidden border d-none bg-black text-center p-2">
+								<img id="bn-image-preview" class="w-100 rounded shadow-sm" style="max-height: 190px; object-fit: cover;" alt="Vista previa del banner" />
+							</div>
+							<input type="hidden" id="bn-image-url" />
+							<div class="mt-1">
+								<a href="javascript:void(0)" class="small text-muted text-decoration-none" id="toggle-manual-image-url"><i class="ri-link me-1"></i>Ingresar URL externa (opcional)</a>
+								<div id="manual-image-url-container" class="d-none mt-1">
+									<input type="text" class="form-control form-control-sm" id="bn-image-url-manual" placeholder="https://... o /uploads/catalogo/banners/..." />
+								</div>
+							</div>
 						</div>
 						<div class="col-12 bn-field bn-file">
-							<label class="form-label small fw-bold text-muted">Poster (imagen miniatura mientras carga el video, opcional)</label>
+							<label class="form-label small fw-bold text-muted">Poster (miniatura mientras carga el video, opcional)</label>
 							<div class="input-group">
 								<input type="file" class="form-control" id="bn-poster-file-input" accept="image/*" />
 								<button class="btn btn-outline-dark" type="button" id="bn-poster-upload-btn">
 									<i class="ri-upload-cloud-2-line me-1"></i> Subir poster
 								</button>
 							</div>
-							<input type="text" class="form-control mt-2" id="bn-poster" placeholder="URL o ruta del poster (opcional)" />
 							<div id="bn-poster-upload-status" class="small mt-1 d-none"></div>
+							<!-- Previsualización del poster -->
+							<div id="bn-poster-preview-wrap" class="mt-2 rounded overflow-hidden border d-none bg-black p-1" style="max-width: 180px;">
+								<img id="bn-poster-preview" class="w-100 rounded" style="height: 90px; object-fit: cover;" alt="Vista previa poster" />
+							</div>
+							<input type="hidden" id="bn-poster" />
 						</div>
 						<div class="col-12 col-md-4"><label class="form-label small fw-bold text-muted">Kicker (texto pequeño)</label><input type="text" class="form-control" id="bn-kicker" /></div>
 						<div class="col-12 col-md-8"><label class="form-label small fw-bold text-muted">Título</label><input type="text" class="form-control" id="bn-title" /></div>
@@ -346,7 +375,75 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 			}
 			$('bn-source').addEventListener('change', syncFields);
 
-			async function uploadBannerFile(file, statusEl, urlInput) {
+			// Previsualizaciones reactivas
+			function updateYtPreview(val) {
+				val = (val || '').trim();
+				const match = val.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+				const id = match ? match[1] : val;
+				if (id && id.length === 11) {
+					$('bn-yt-thumb').src = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+					$('bn-yt-preview').classList.remove('d-none');
+				} else {
+					$('bn-yt-preview').classList.add('d-none');
+				}
+			}
+			$('bn-video-id').addEventListener('input', () => updateYtPreview($('bn-video-id').value));
+
+			function setVideoPreview(url) {
+				if (url) {
+					$('bn-video-preview').src = url;
+					$('bn-video-preview-wrap').classList.remove('d-none');
+					$('bn-video-url').value = url;
+					$('bn-video-url-manual').value = url;
+				} else {
+					$('bn-video-preview').src = '';
+					$('bn-video-preview-wrap').classList.add('d-none');
+					$('bn-video-url').value = '';
+					$('bn-video-url-manual').value = '';
+				}
+			}
+
+			function setImagePreview(url) {
+				if (url) {
+					$('bn-image-preview').src = url;
+					$('bn-image-preview-wrap').classList.remove('d-none');
+					$('bn-image-url').value = url;
+					$('bn-image-url-manual').value = url;
+				} else {
+					$('bn-image-preview').src = '';
+					$('bn-image-preview-wrap').classList.add('d-none');
+					$('bn-image-url').value = '';
+					$('bn-image-url-manual').value = '';
+				}
+			}
+
+			function setPosterPreview(url) {
+				if (url) {
+					$('bn-poster-preview').src = url;
+					$('bn-poster-preview-wrap').classList.remove('d-none');
+					$('bn-poster').value = url;
+				} else {
+					$('bn-poster-preview').src = '';
+					$('bn-poster-preview-wrap').classList.add('d-none');
+					$('bn-poster').value = '';
+				}
+			}
+
+			$('toggle-manual-video-url').addEventListener('click', () => {
+				$('manual-video-url-container').classList.toggle('d-none');
+			});
+			$('bn-video-url-manual').addEventListener('input', () => {
+				setVideoPreview($('bn-video-url-manual').value.trim());
+			});
+
+			$('toggle-manual-image-url').addEventListener('click', () => {
+				$('manual-image-url-container').classList.toggle('d-none');
+			});
+			$('bn-image-url-manual').addEventListener('input', () => {
+				setImagePreview($('bn-image-url-manual').value.trim());
+			});
+
+			async function uploadBannerFile(file, statusEl, onDone) {
 				if (!file) return;
 				statusEl.classList.remove('d-none', 'text-danger', 'text-success');
 				statusEl.classList.add('text-primary');
@@ -361,10 +458,10 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 					const data = await res.json();
 					if (!res.ok) throw new Error(data.error || 'Error al subir archivo');
 					const fileUrl = data.path || data.url;
-					urlInput.value = fileUrl;
 					statusEl.classList.remove('text-primary');
 					statusEl.classList.add('text-success');
 					statusEl.innerHTML = `✓ Subido correctamente: <strong>${data.filename}</strong>`;
+					onDone(fileUrl);
 					return fileUrl;
 				} catch (err) {
 					statusEl.classList.remove('text-primary');
@@ -379,7 +476,7 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 			$('bn-video-upload-btn').addEventListener('click', () => videoFileInput.click());
 			videoFileInput.addEventListener('change', () => {
 				const file = videoFileInput.files && videoFileInput.files[0];
-				if (file) uploadBannerFile(file, videoStatus, $('bn-video-url'));
+				if (file) uploadBannerFile(file, videoStatus, (url) => setVideoPreview(url));
 			});
 
 			const imageFileInput = $('bn-image-file-input');
@@ -387,7 +484,7 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 			$('bn-image-upload-btn').addEventListener('click', () => imageFileInput.click());
 			imageFileInput.addEventListener('change', () => {
 				const file = imageFileInput.files && imageFileInput.files[0];
-				if (file) uploadBannerFile(file, imageStatus, $('bn-image-url'));
+				if (file) uploadBannerFile(file, imageStatus, (url) => setImagePreview(url));
 			});
 
 			const posterFileInput = $('bn-poster-file-input');
@@ -395,7 +492,7 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 			$('bn-poster-upload-btn').addEventListener('click', () => posterFileInput.click());
 			posterFileInput.addEventListener('change', () => {
 				const file = posterFileInput.files && posterFileInput.files[0];
-				if (file) uploadBannerFile(file, posterStatus, $('bn-poster'));
+				if (file) uploadBannerFile(file, posterStatus, (url) => setPosterPreview(url));
 			});
 
 			function openBanner(b) {
@@ -406,12 +503,12 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 				videoStatus.classList.add('d-none');
 				imageStatus.classList.add('d-none');
 				posterStatus.classList.add('d-none');
+				$('manual-video-url-container').classList.add('d-none');
+				$('manual-image-url-container').classList.add('d-none');
+
 				$('bn-id').value = b ? b.id : '';
 				$('bn-source').value = b ? b.source : 'youtube';
 				$('bn-video-id').value = b ? b.video_id : '';
-				$('bn-video-url').value = b ? b.video_url : '';
-				$('bn-image-url').value = b ? b.image_url : '';
-				$('bn-poster').value = b ? b.poster : '';
 				$('bn-kicker').value = b ? b.kicker : '';
 				$('bn-title').value = b ? b.title : '';
 				$('bn-subtitle').value = b ? b.subtitle : '';
@@ -419,6 +516,12 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 				$('bn-cta-link').value = b ? b.cta_link : '';
 				$('bn-active').checked = b ? b.is_active : true;
 				$('bannerModalTitle').textContent = b ? 'Editar banner' : 'Nuevo banner';
+
+				updateYtPreview(b ? b.video_id : '');
+				setVideoPreview(b ? b.video_url : '');
+				setImagePreview(b ? b.image_url : '');
+				setPosterPreview(b ? b.poster : '');
+
 				syncFields();
 				bs().Modal.getOrCreateInstance(modalEl).show();
 			}

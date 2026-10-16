@@ -19,9 +19,6 @@ export function getCatalogUploadsRoot(): string {
 	if (process.env.CATALOG_UPLOADS_DIR) {
 		return path.resolve(process.env.CATALOG_UPLOADS_DIR);
 	}
-	if (process.env.UPLOADS_DIR) {
-		const parent = path.dirname(process.env.UPLOADS_DIR);
-		return path.join(parent, 'catalogo');
-	}
-	return path.resolve(process.cwd(), 'catalogo');
+	// Por defecto se guarda dentro de uploads/catalogo para persistir en un solo volumen
+	return path.join(getUploadsRoot(), 'catalogo');
 }

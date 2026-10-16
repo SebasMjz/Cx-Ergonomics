@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -12,8 +12,11 @@ COPY . .
 # Build application
 RUN npm run build
 
+# Prune devDependencies to keep only production dependencies
+RUN npm prune --production
+
 # Production image
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -21,14 +24,14 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=4321
 
-# Copy package files and install production dependencies only
+# Copy package files and built artifacts
 COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy built dist and public files from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
+
+# Ensure upload directories can be created
+RUN mkdir -p /app/uploads/catalogo /app/uploads/rma
 
 # Expose server port
 EXPOSE 4321

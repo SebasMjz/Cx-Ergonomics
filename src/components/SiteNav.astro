@@ -8,8 +8,13 @@ interface Props {
 }
 const { active = '' } = Astro.props;
 
-await connectMongoose();
-const categories = await CategoryModel.find({ is_active: true }).sort({ name: 1 }).lean();
+let categories: any[] = [];
+try {
+	await connectMongoose();
+	categories = await CategoryModel.find({ is_active: true }).sort({ name: 1 }).lean();
+} catch (e) {
+	console.error('[SiteNav Error]:', e);
+}
 
 const authToken = readCookieValue(Astro.request.headers.get('cookie'), 'cx_auth');
 const session = authToken ? verifyAuthToken(authToken) : null;

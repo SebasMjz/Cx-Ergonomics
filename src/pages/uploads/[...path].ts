@@ -45,6 +45,7 @@ export const GET: APIRoute = ({ params, request }) => {
 		else if (ext === '.webp') contentType = 'image/webp';
 		else if (ext === '.gif') contentType = 'image/gif';
 		else if (ext === '.svg') contentType = 'image/svg+xml';
+		else if (ext === '.pdf') contentType = 'application/pdf';
 		else if (ext === '.mp4') contentType = 'video/mp4';
 		else if (ext === '.webm') contentType = 'video/webm';
 		else if (ext === '.mov') contentType = 'video/quicktime';
@@ -72,6 +73,7 @@ export const GET: APIRoute = ({ params, request }) => {
 					'Accept-Ranges': 'bytes',
 					'Content-Length': chunksize.toString(),
 					'Content-Type': contentType,
+					'Content-Disposition': 'inline',
 				},
 			});
 		}
@@ -82,6 +84,7 @@ export const GET: APIRoute = ({ params, request }) => {
 			headers: {
 				'Content-Type': contentType,
 				'Content-Length': fileSize.toString(),
+				'Content-Disposition': 'inline',
 				'Accept-Ranges': 'bytes',
 				'Cache-Control': 'public, max-age=31536000',
 			},

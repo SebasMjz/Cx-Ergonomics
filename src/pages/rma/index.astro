@@ -1173,8 +1173,29 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 			}
 			.card-header { background: #fff !important; border-bottom: 1px solid #f0f1f4 !important; }
 
-			/* Small boxes con un poco más de profundidad */
-			.small-box { border-radius: 14px !important; }
+			/* Small boxes con un poco más de profundidad e iconos perfectamente contenidos */
+			.small-box {
+				border-radius: 14px !important;
+				overflow: hidden !important;
+				position: relative !important;
+			}
+			.small-box .small-box-icon {
+				font-size: 40px !important;
+				width: 40px !important;
+				height: 40px !important;
+				right: 12px !important;
+				top: 50% !important;
+				transform: translateY(-50%) !important;
+				pointer-events: none !important;
+				display: flex !important;
+				align-items: center !important;
+				justify-content: center !important;
+				opacity: 0.2 !important;
+			}
+			.small-box:hover .small-box-icon {
+				transform: translateY(-50%) scale(1.08) !important;
+				opacity: 0.3 !important;
+			}
 
 
 
@@ -2168,18 +2189,8 @@ const ticketsJson = JSON.stringify(allTickets.map(t => {
 						container.innerHTML = `<video src="${url}" controls autoplay class="mw-100 mh-100 rounded shadow" style="max-height: 70vh;"></video>`;
 					} else if (isPdf) {
 						container.innerHTML = `
-							<div class="w-100 d-flex flex-column align-items-center justify-content-center p-2 rounded bg-white text-dark" style="min-height: 65vh;">
-								<object data="${url}" type="application/pdf" class="w-100 rounded" style="height: 65vh; min-height: 420px;">
-									<embed src="${url}" type="application/pdf" class="w-100" style="height: 65vh; min-height: 420px;" />
-									<div class="text-center p-4">
-										<i class="ri-file-pdf-2-line fs-1 text-danger mb-2 d-block"></i>
-										<h5 class="fw-bold text-dark mb-2">Documento PDF Factura</h5>
-										<p class="text-muted small mb-3">Si tu navegador no muestra la previsualización directa, puedes abrir el PDF completo a continuación.</p>
-										<a href="${url}" target="_blank" rel="noopener" class="btn btn-danger rounded-pill px-4 fw-bold">
-											<i class="ri-external-link-line me-1"></i> Abrir Documento PDF
-										</a>
-									</div>
-								</object>
+							<div class="w-100 d-flex flex-column rounded overflow-hidden bg-light" style="height: 72vh; min-height: 480px;">
+								<iframe src="${url}#toolbar=1" class="w-100 h-100 border-0 rounded" title="${title}"></iframe>
 							</div>`;
 					} else {
 						container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;

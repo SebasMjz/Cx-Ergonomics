@@ -120,7 +120,7 @@ async function seedProducts(
 			spec_table: [
 				{ label: 'Material', value: 'Acero / MDF' },
 				{ label: 'Color', value: 'Negro' },
-				{ label: 'Carga máxima', value: '120 kg' },
+				{ label: 'Carga m├íxima', value: '120 kg' },
 				{ label: 'Motor', value: 'Doble motor' },
 			],
 			specs: { material: 'Acero / MDF', color: 'Negro', weight_capacity: '120 kg' },
@@ -139,7 +139,7 @@ async function seedProducts(
 			spec_table: [
 				{ label: 'Material', value: 'Acero / MDF' },
 				{ label: 'Color', value: 'Blanco' },
-				{ label: 'Carga máxima', value: '80 kg' },
+				{ label: 'Carga m├íxima', value: '80 kg' },
 			],
 			specs: { material: 'Acero / MDF', color: 'Blanco', weight_capacity: '80 kg' },
 			images: [
@@ -149,34 +149,34 @@ async function seedProducts(
 		},
 		{
 			name: 'Mesa E-Fit Ajustable',
-			description: 'Escritorio regulable de alta performance con sensor de colisión integrado.',
+			description: 'Escritorio regulable de alta performance con sensor de colisi├│n integrado.',
 			sku: 'MESA-EFIT-AJUSTABLE',
 			category_id: categoryEntries.mesas._id,
 			tag_ids: [tags.get('new')].filter(Boolean),
-			highlights: ['Sensor anticolisión', 'Ajuste ultra silencioso', 'Estructura reforzada'],
+			highlights: ['Sensor anticolisi├│n', 'Ajuste ultra silencioso', 'Estructura reforzada'],
 			spec_table: [
 				{ label: 'Material', value: 'Acero / Madera premium' },
-				{ label: 'Color', value: 'Gris Carbón' },
-				{ label: 'Carga máxima', value: '100 kg' },
+				{ label: 'Color', value: 'Gris Carb├│n' },
+				{ label: 'Carga m├íxima', value: '100 kg' },
 			],
-			specs: { material: 'Acero / Madera premium', color: 'Gris Carbón', weight_capacity: '100 kg' },
+			specs: { material: 'Acero / Madera premium', color: 'Gris Carb├│n', weight_capacity: '100 kg' },
 			images: [
 				`${baseUrl}/uploads/products/atk-leviatan-00-59440dc59ee592e75017560510565986-1024-1024-Photoroom-1.png`,
 			],
 		},
 		{
 			name: 'Brazo Orion Duo',
-			description: 'Brazo articulado doble de movimiento hidráulico para dos monitores de hasta 27 pulgadas.',
+			description: 'Brazo articulado doble de movimiento hidr├íulico para dos monitores de hasta 27 pulgadas.',
 			sku: 'BRAZO-ORION-DUO',
 			category_id: categoryEntries.brazos._id,
 			tag_ids: [tags.get('top')].filter(Boolean),
-			highlights: ['Soporta 2 monitores', 'Rotación 360°', 'Gestión de cables integrada', 'Pistón a gas'],
+			highlights: ['Soporta 2 monitores', 'Rotaci├│n 360┬░', 'Gesti├│n de cables integrada', 'Pist├│n a gas'],
 			spec_table: [
-				{ label: 'Material', value: 'Aluminio de aviación' },
+				{ label: 'Material', value: 'Aluminio de aviaci├│n' },
 				{ label: 'Color', value: 'Negro Mate' },
-				{ label: 'Carga máxima', value: '2 x 9 kg' },
+				{ label: 'Carga m├íxima', value: '2 x 9 kg' },
 			],
-			specs: { material: 'Aluminio de aviación', color: 'Negro Mate', weight_capacity: '2 x 9 kg' },
+			specs: { material: 'Aluminio de aviaci├│n', color: 'Negro Mate', weight_capacity: '2 x 9 kg' },
 			images: [
 				`${baseUrl}/uploads/products/3-3-1-Photoroom-1024x1024.png`,
 				`${baseUrl}/uploads/products/71yLlt4fVdL-Photoroom-1024x1024.png`,
@@ -184,15 +184,15 @@ async function seedProducts(
 		},
 		{
 			name: 'Brazo Nova Single',
-			description: 'Soporte articulado individual con ajuste milimétrico de inclinación y rotación 360 grados.',
+			description: 'Soporte articulado individual con ajuste milim├®trico de inclinaci├│n y rotaci├│n 360 grados.',
 			sku: 'BRAZO-NOVA-SINGLE',
 			category_id: categoryEntries.brazos._id,
 			tag_ids: [],
-			highlights: ['Ajuste de inclinación fluido', 'Instalación rápida mediante prensa o pasacables'],
+			highlights: ['Ajuste de inclinaci├│n fluido', 'Instalaci├│n r├ípida mediante prensa o pasacables'],
 			spec_table: [
 				{ label: 'Material', value: 'Acero / Aluminio' },
 				{ label: 'Color', value: 'Gris espacial' },
-				{ label: 'Carga máxima', value: '8 kg' },
+				{ label: 'Carga m├íxima', value: '8 kg' },
 			],
 			specs: { material: 'Acero / Aluminio', color: 'Gris espacial', weight_capacity: '8 kg' },
 			images: [
@@ -206,11 +206,11 @@ async function seedProducts(
 			sku: 'BRAZO-TRITON-ULTIMATE',
 			category_id: categoryEntries.brazos._id,
 			tag_ids: [tags.get('top')].filter(Boolean),
-			highlights: ['Soporta pantallas ultra-wide', 'Ajuste de tensión visible', 'Puertos USB en base'],
+			highlights: ['Soporta pantallas ultra-wide', 'Ajuste de tensi├│n visible', 'Puertos USB en base'],
 			spec_table: [
 				{ label: 'Material', value: 'Aluminio reforzado' },
 				{ label: 'Color', value: 'Plata satinado' },
-				{ label: 'Carga máxima', value: '14 kg' },
+				{ label: 'Carga m├íxima', value: '14 kg' },
 			],
 			specs: { material: 'Aluminio reforzado', color: 'Plata satinado', weight_capacity: '14 kg' },
 			images: [
@@ -223,23 +223,23 @@ async function seedProducts(
 			sku: 'ERGO-TRAY-001',
 			category_id: categoryEntries.accesorios._id,
 			tag_ids: [tags.get('new')].filter(Boolean),
-			highlights: ['Optimiza el espacio de trabajo', 'Material resistente anticorrosivo', 'Fácil anclaje'],
+			highlights: ['Optimiza el espacio de trabajo', 'Material resistente anticorrosivo', 'F├ícil anclaje'],
 			spec_table: [
-				{ label: 'Material', value: 'Polímero de alta resistencia' },
+				{ label: 'Material', value: 'Pol├¡mero de alta resistencia' },
 				{ label: 'Color', value: 'Negro' },
 			],
-			specs: { material: 'Polímero de alta resistencia', color: 'Negro' },
+			specs: { material: 'Pol├¡mero de alta resistencia', color: 'Negro' },
 			images: [
 				`${baseUrl}/uploads/products/4_436194dd-03ac-4c8f-a977-ad3139f101d2-1-Photoroom-1024x1024.webp`,
 			],
 		},
 		{
 			name: 'Soporte Premium VESA',
-			description: 'Adaptador VESA universal reforzado para monitores sin orificios de fábrica.',
+			description: 'Adaptador VESA universal reforzado para monitores sin orificios de f├íbrica.',
 			sku: 'SOPORTE-PREMIUM-VESA',
 			category_id: categoryEntries.accesorios._id,
 			tag_ids: [],
-			highlights: ['Universal para pantallas sin VESA', 'Brazos acolchados anti-rayaduras', 'Fácil armado'],
+			highlights: ['Universal para pantallas sin VESA', 'Brazos acolchados anti-rayaduras', 'F├ícil armado'],
 			spec_table: [
 				{ label: 'Material', value: 'Acero estructural' },
 				{ label: 'Color', value: 'Negro satinado' },
@@ -251,11 +251,11 @@ async function seedProducts(
 		},
 		{
 			name: 'Bandeja de Cables Tech',
-			description: 'Canaleta metálica de gestión de cableado para mantener un setup limpio y ordenado.',
+			description: 'Canaleta met├ílica de gesti├│n de cableado para mantener un setup limpio y ordenado.',
 			sku: 'BANDEJA-CABLES-TECH',
 			category_id: categoryEntries.accesorios._id,
 			tag_ids: [tags.get('promo')].filter(Boolean),
-			highlights: ['Gran capacidad de cableado', 'Instalación sin perforar', 'Diseño ventilado'],
+			highlights: ['Gran capacidad de cableado', 'Instalaci├│n sin perforar', 'Dise├▒o ventilado'],
 			spec_table: [
 				{ label: 'Material', value: 'Acero al carbono' },
 				{ label: 'Color', value: 'Negro mate' },
@@ -293,10 +293,10 @@ async function seedPointsOfSale() {
 
 async function seedFaqs() {
 	const faqs = [
-		{ question: '¿Qué garantía tienen los productos CX?', answer: 'Todos nuestros productos cuentan con garantía oficial. Puedes registrar una solicitud desde la sección de Soporte (RMA).', order: 1 },
-		{ question: '¿Hacen envíos a todo el país?', answer: 'Sí, realizamos envíos a todo Bolivia a través de couriers aliados. Los tiempos varían según la ciudad.', order: 2 },
-		{ question: '¿Cómo puedo ser distribuidor?', answer: 'Completa el formulario en la sección "Quiero ser Distribuidor" y nuestro equipo comercial te contactará.', order: 3 },
-		{ question: '¿Dónde encuentro el número de serie?', answer: 'El número de serie (S/N) está en la etiqueta adhesiva debajo de tu mesa o brazo de monitor.', order: 4 },
+		{ question: '┬┐Qu├® garant├¡a tienen los productos CX?', answer: 'Todos nuestros productos cuentan con garant├¡a oficial. Puedes registrar una solicitud desde la secci├│n de Soporte (RMA).', order: 1 },
+		{ question: '┬┐Hacen env├¡os a todo el pa├¡s?', answer: 'S├¡, realizamos env├¡os a todo Bolivia a trav├®s de couriers aliados. Los tiempos var├¡an seg├║n la ciudad.', order: 2 },
+		{ question: '┬┐C├│mo puedo ser distribuidor?', answer: 'Completa el formulario en la secci├│n "Quiero ser Distribuidor" y nuestro equipo comercial te contactar├í.', order: 3 },
+		{ question: '┬┐D├│nde encuentro el n├║mero de serie?', answer: 'El n├║mero de serie (S/N) est├í en la etiqueta adhesiva debajo de tu mesa o brazo de monitor.', order: 4 },
 	];
 	for (const f of faqs) {
 		const existing = await FaqModel.findOne({ question: f.question });
@@ -322,8 +322,8 @@ async function seedSettings() {
 			whatsapp_number: '59170000000',
 			whatsapp_number_products: '59170000000',
 			contact_email: 'ventas@cxergonomic.com',
-			distributor_intro: 'Lleva los productos CX a tu ciudad. Completa el formulario y nuestro equipo comercial te contactará con precios mayoristas y condiciones.',
-			community_intro: 'Conecta con nosotros, comparte tu setup y entérate de lanzamientos, promos y novedades.',
+			distributor_intro: 'Lleva los productos CX a tu ciudad. Completa el formulario y nuestro equipo comercial te contactar├í con precios mayoristas y condiciones.',
+			community_intro: 'Conecta con nosotros, comparte tu setup y ent├®rate de lanzamientos, promos y novedades.',
 			socials: {
 				instagram: 'https://instagram.com/cxergonomic',
 				tiktok: 'https://tiktok.com/@cxergonomic',
@@ -368,9 +368,9 @@ async function seedTickets() {
 			evidence_video: `${baseUrl}/uploads/rma/videos/video-1003.mp4`,
 			status: 'finalizada',
 			resolution_type: 'reponer',
-			resolution_main_comment: 'Se repone el control remoto por defecto de fábrica cubierto por garantía.',
-			client_solution: 'Se entregó un control remoto nuevo al cliente.',
-			supplier_solution: 'El proveedor reconoció el lote defectuoso y repuso la pieza.',
+			resolution_main_comment: 'Se repone el control remoto por defecto de f├íbrica cubierto por garant├¡a.',
+			client_solution: 'Se entreg├│ un control remoto nuevo al cliente.',
+			supplier_solution: 'El proveedor reconoci├│ el lote defectuoso y repuso la pieza.',
 			history: [
 				{ status: 'recibida', note: 'Ticket ingresado', updated_at: new Date() },
 				{ status: 'finalizada', note: 'Garantia cerrada', updated_at: new Date() },
@@ -400,7 +400,7 @@ async function seedBanners() {
 	const banners = [
 		{
 			kicker: 'CX ERGONOMIC',
-			title: 'DISEÑADO PARA RENDIR',
+			title: 'DISE├æADO PARA RENDIR',
 			subtitle:
 				'Estaciones de trabajo ergonomicas construidas para acompanarte cada hora del dia. Potencia, ajuste y precision en cada detalle.',
 			cta_text: 'VER CATALOGO',
@@ -436,12 +436,18 @@ async function seedBanners() {
 async function run() {
 	await connectMongoose();
 	const credentials = await seedUsers();
+	const categories = await seedCategories();
+	const tags = await seedTags();
+	await seedProducts(categories, tags);
+	await seedTickets();
 	await seedBanners();
+	await seedPointsOfSale();
 	await seedFaqs();
+	await seedWallpapers();
 	await seedSettings();
 
-	console.log('Seed completado exitosamente con configuraciones iniciales.');
-	console.log('Credenciales de acceso:');
+	console.log('Seed completado. Credenciales:');
+	console.log(`Categorias creadas/validadas: ${categories.size}`);
 	for (const entry of credentials) {
 		console.log(`- ${entry.role}: ${entry.email} / ${entry.password}`);
 	}

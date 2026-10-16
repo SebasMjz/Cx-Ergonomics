@@ -223,16 +223,39 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 							<input type="text" class="form-control" id="bn-video-id" placeholder="Ej. 2ZhY7LfpkqQ" />
 						</div>
 						<div class="col-12 bn-field bn-file">
-							<label class="form-label small fw-bold text-muted">URL del video (.mp4/.webm)</label>
-							<input type="url" class="form-control" id="bn-video-url" placeholder="https://.../video.mp4" />
+							<label class="form-label small fw-bold text-muted">Archivo de Video (.mp4, .webm)</label>
+							<div class="input-group">
+								<input type="file" class="form-control" id="bn-video-file-input" accept="video/mp4,video/webm,video/quicktime" />
+								<button class="btn btn-outline-dark" type="button" id="bn-video-upload-btn">
+									<i class="ri-upload-cloud-2-line me-1"></i> Subir video
+								</button>
+							</div>
+							<div class="form-text small text-muted">El video se guardará en la carpeta persistente de banners (/app/uploads/catalogo/banners).</div>
+							<input type="text" class="form-control mt-2" id="bn-video-url" placeholder="URL o ruta del video (/uploads/catalogo/banners/...)" />
+							<div id="bn-video-upload-status" class="small mt-1 d-none"></div>
 						</div>
 						<div class="col-12 bn-field bn-image">
-							<label class="form-label small fw-bold text-muted">URL de la imagen</label>
-							<input type="url" class="form-control" id="bn-image-url" placeholder="https://.../banner.jpg" />
+							<label class="form-label small fw-bold text-muted">Archivo de Imagen (.png, .jpg, .webp)</label>
+							<div class="input-group">
+								<input type="file" class="form-control" id="bn-image-file-input" accept="image/*" />
+								<button class="btn btn-outline-dark" type="button" id="bn-image-upload-btn">
+									<i class="ri-upload-cloud-2-line me-1"></i> Subir imagen
+								</button>
+							</div>
+							<div class="form-text small text-muted">La imagen se guardará en la carpeta persistente de banners.</div>
+							<input type="text" class="form-control mt-2" id="bn-image-url" placeholder="URL o ruta de la imagen (/uploads/catalogo/banners/...)" />
+							<div id="bn-image-upload-status" class="small mt-1 d-none"></div>
 						</div>
 						<div class="col-12 bn-field bn-file">
-							<label class="form-label small fw-bold text-muted">Poster (imagen mientras carga el video, opcional)</label>
-							<input type="url" class="form-control" id="bn-poster" placeholder="https://.../poster.jpg" />
+							<label class="form-label small fw-bold text-muted">Poster (imagen miniatura mientras carga el video, opcional)</label>
+							<div class="input-group">
+								<input type="file" class="form-control" id="bn-poster-file-input" accept="image/*" />
+								<button class="btn btn-outline-dark" type="button" id="bn-poster-upload-btn">
+									<i class="ri-upload-cloud-2-line me-1"></i> Subir poster
+								</button>
+							</div>
+							<input type="text" class="form-control mt-2" id="bn-poster" placeholder="URL o ruta del poster (opcional)" />
+							<div id="bn-poster-upload-status" class="small mt-1 d-none"></div>
 						</div>
 						<div class="col-12 col-md-4"><label class="form-label small fw-bold text-muted">Kicker (texto pequeño)</label><input type="text" class="form-control" id="bn-kicker" /></div>
 						<div class="col-12 col-md-8"><label class="form-label small fw-bold text-muted">Título</label><input type="text" class="form-control" id="bn-title" /></div>
@@ -323,8 +346,66 @@ const sourceLabel: Record<string, string> = { youtube: 'YouTube', file: 'Video (
 			}
 			$('bn-source').addEventListener('change', syncFields);
 
+			async function uploadBannerFile(file, statusEl, urlInput) {
+				if (!file) return;
+				statusEl.classList.remove('d-none', 'text-danger', 'text-success');
+				statusEl.classList.add('text-primary');
+				statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Subiendo a carpeta de banners...';
+				try {
+					const fd = new FormData();
+					fd.append('file', file);
+					const res = await fetch('/api/catalog/banners/upload', {
+						method: 'POST',
+						body: fd,
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Error al subir archivo');
+					const fileUrl = data.path || data.url;
+					urlInput.value = fileUrl;
+					statusEl.classList.remove('text-primary');
+					statusEl.classList.add('text-success');
+					statusEl.innerHTML = `✓ Subido correctamente: <strong>${data.filename}</strong>`;
+					return fileUrl;
+				} catch (err) {
+					statusEl.classList.remove('text-primary');
+					statusEl.classList.add('text-danger');
+					statusEl.textContent = `Error: ${err.message}`;
+					throw err;
+				}
+			}
+
+			const videoFileInput = $('bn-video-file-input');
+			const videoStatus = $('bn-video-upload-status');
+			$('bn-video-upload-btn').addEventListener('click', () => videoFileInput.click());
+			videoFileInput.addEventListener('change', () => {
+				const file = videoFileInput.files && videoFileInput.files[0];
+				if (file) uploadBannerFile(file, videoStatus, $('bn-video-url'));
+			});
+
+			const imageFileInput = $('bn-image-file-input');
+			const imageStatus = $('bn-image-upload-status');
+			$('bn-image-upload-btn').addEventListener('click', () => imageFileInput.click());
+			imageFileInput.addEventListener('change', () => {
+				const file = imageFileInput.files && imageFileInput.files[0];
+				if (file) uploadBannerFile(file, imageStatus, $('bn-image-url'));
+			});
+
+			const posterFileInput = $('bn-poster-file-input');
+			const posterStatus = $('bn-poster-upload-status');
+			$('bn-poster-upload-btn').addEventListener('click', () => posterFileInput.click());
+			posterFileInput.addEventListener('change', () => {
+				const file = posterFileInput.files && posterFileInput.files[0];
+				if (file) uploadBannerFile(file, posterStatus, $('bn-poster'));
+			});
+
 			function openBanner(b) {
 				bnError.classList.add('d-none');
+				videoFileInput.value = '';
+				imageFileInput.value = '';
+				posterFileInput.value = '';
+				videoStatus.classList.add('d-none');
+				imageStatus.classList.add('d-none');
+				posterStatus.classList.add('d-none');
 				$('bn-id').value = b ? b.id : '';
 				$('bn-source').value = b ? b.source : 'youtube';
 				$('bn-video-id').value = b ? b.video_id : '';

@@ -1231,17 +1231,7 @@ const warrantyPolicy = (settings.rma_warranty_policy || '').trim();
 				} else if (isPdf) {
 					container.innerHTML = `
 						<div class="w-100 d-flex flex-column align-items-center justify-content-center p-2 rounded bg-white text-dark" style="min-height: 65vh;">
-							<object data="${url}" type="application/pdf" class="w-100 rounded" style="height: 65vh; min-height: 420px;">
-								<embed src="${url}" type="application/pdf" class="w-100" style="height: 65vh; min-height: 420px;" />
-								<div class="text-center p-4">
-									<i class="ri-file-pdf-2-line fs-1 text-danger mb-2 d-block"></i>
-									<h5 class="fw-bold text-dark mb-2">Documento PDF</h5>
-									<p class="text-muted small mb-3">Si tu navegador no muestra la previsualización directa, puedes abrir el PDF completo a continuación.</p>
-									<a href="${url}" target="_blank" rel="noopener" class="btn btn-danger rounded-pill px-4 fw-bold">
-										<i class="ri-external-link-line me-1"></i> Abrir Documento PDF
-									</a>
-								</div>
-							</object>
+							<iframe src="${url}#toolbar=1" class="w-100 h-100 border-0 rounded" title="${title}"></iframe>
 						</div>`;
 				} else {
 					container.innerHTML = `<img src="${url}" alt="Previsualización" class="img-fluid rounded shadow" style="max-height: 70vh; object-fit: contain;" />`;

@@ -35,10 +35,40 @@ async function main() {
 		}
 	}
 
-	console.log('[Preservación] Los Usuarios, Tiendas, Banners y FAQs se conservaron intactos.');
-
 	console.log('\n--- Resiembra de Tickets de datos.json ---');
 	await runSeedStore();
+
+	const bannerCount = await BannerModel.countDocuments();
+	if (bannerCount === 0) {
+		console.log('\n--- Creando Banners de Inicio por defecto (YouTube) ---');
+		await BannerModel.create([
+			{
+				kicker: 'CX ERGONOMIC',
+				title: 'DISEÑADO PARA RENDIR',
+				subtitle:
+					'Estaciones de trabajo ergonomicas construidas para acompanarte cada hora del dia. Potencia, ajuste y precision en cada detalle.',
+				cta_text: 'VER CATALOGO',
+				cta_link: '#catalog-section',
+				source: 'youtube',
+				video_id: 'nBMEoWlOjw0',
+				order: 1,
+				is_active: true,
+			},
+			{
+				kicker: 'EXPERIENCIA CX',
+				title: 'TU ESPACIO, TU REGLA',
+				subtitle:
+					'Cada componente esta pensado para adaptarse a ti. Descubre la linea completa de mobiliario y accesorios inteligentes.',
+				cta_text: 'EXPLORAR',
+				cta_link: '#catalog-section',
+				source: 'youtube',
+				video_id: 'lHmrFqCvXxQ',
+				order: 2,
+				is_active: true,
+			},
+		]);
+		console.log('Banners de YouTube creados exitosamente.');
+	}
 
 	try {
 		await mongoose.disconnect();
